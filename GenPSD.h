@@ -13,6 +13,7 @@ class Func{
 
 };
 
+
 /*
   Function BetaDist
 
@@ -20,7 +21,17 @@ class Func{
                curve date according to the expression for the beta distribution
                described in [VOI07]. Eqn. 5.15 p.139 in [RAD11].
 */
-void BetaDist(double, double, int, double*);
+int BetaDist(double, double, int, double*);
+
+
+int GenPopulations(int*, int, int, int, int*, double*, double, double);
+
+
+double GenDia(double, double, double);
+
+
+void GenPSD(int, int, double*, int*, double, double, double);
+
 
 /*
   Function: ReducedDiam
@@ -32,6 +43,9 @@ void BetaDist(double, double, int, double*);
                to eqn. 5.18 p.140 [RAD11].
 */
 double ReducedDiam(double*, double*, double*);
+
+
+void SelectionSort(double*, int);
 
 
 #endif // GEN_PSD_H

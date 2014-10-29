@@ -48,7 +48,6 @@ int main(int argc, char **argv){
   int N_p_min, N_pc_min, N_tot;
   int N_c, *N;
   char line[MAX_STR_LEN];
-  Func *MyFunc;
 
   // Read parameters from file
   while( fgets(line, MAX_STR_LEN, InputFile) != NULL ){
@@ -96,7 +95,9 @@ int main(int argc, char **argv){
   }
 
   // Display input parameters.
+  printf("\n!!-----------------------------------------------------!!\n");
   printf("Input parameters read from file %s:\n"\
+        "!!-----------------------------------------------------!!\n"\
         "beta_a = %lf\n"\
         "beta_b = %lf\n"\
         "d_min = %lf\n"\
@@ -104,26 +105,34 @@ int main(int argc, char **argv){
         "C_rep = %lf\n"\
         "N_p_min = %d\n"\
         "N_pc_min = %d\n"\
-        "N_c = %d\n",\
+        "N_c = %d\n\n",\
         InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c);
-
+  
   // Allocate memory for analytical grading curve and PSD class populations.
   //h = malloc( (N_c+1) * sizeof(double) );
   //N = malloc( N_c * sizeof(int) );
   h = (double*)calloc(N_c+1, sizeof(double));
   N = (int*)calloc(N_c, sizeof(int));
-  MyFunc = new Func(beta_a, beta_b);
 
   // Generate analytical grading curve with BetaDist.  
   BetaDist(beta_a, beta_b, N_c+1, h);
-
-  for(int i=0; i<=N_c; i++) printf("h[%d] = %lf\n", i, h[i]);
-  double IntResult;
-  if( Integrate(&IntResult, 0, 4, 10, 26, 1E-10, MyFunc) == 1 ){
-    printf("Function Integrate did not converge. Program will exit.\n");
-    exit(-1);
+  for(int i=0; i<=N_c; i++){
+    printf("h[%d] = %lf\n", i, h[i]);
   }
-  printf("IntResult = %+1.15e\n", IntResult);
+
+  // Estimate populations from grading curve with constraints.
+  GenPopulations(&N_tot, N_c, N_pc_min, N_p_min, N, h, d_min, d_max);
+  for(int i=0; i<N_c; i++){
+    printf("N[%d] = %d\n", i, N[i]);
+  }
+
+  //double IntResult;
+  //if( Integrate(&IntResult, -4, 0, 10, 26, 1E-10, MyFunc) == 1 ){
+  //  printf("Function Integrate did not converge. Program will exit.\n");
+  //  exit(-1);
+  //}
+  //printf("IntResult = %+1.15e\n", IntResult);
+
   return 0;
 
 }

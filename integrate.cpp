@@ -4,16 +4,16 @@
 
 #define C4 0.498426033038178
 #define VERY_BIG 1E200
-#define VERBOSE_INTEGRATE
+//#define VERBOSE_INTEGRATE
 
 #include "GenPSD.h"
 
-int Integrate(double *result, double a, double b, const int JMAX,
+int Integrate(double *result, double a, double b, const int KMAX,\
     const int N, const double Err, Func* MyFunc)
 {
 
   double ss, ss_old = VERY_BIG; // Current and previous leading error estimate.
-  double s[JMAX], temp[JMAX];   // First order estimates and temp storage.
+  double s[KMAX], temp[KMAX];   // First order estimates and temp storage.
   double del;                   // Integration subdivision width.
   
   del = (b-a)/N;
@@ -25,24 +25,28 @@ int Integrate(double *result, double a, double b, const int JMAX,
   temp[0] = s[0];                       // Save result for truncation step.
 
   // Generate array of first order estimates.
-  for(int k=2; k<=JMAX; k++){
-    s[k-1] = 0.0;
-    for(int j=0; j<N*pow(2,k-2); j++){
-      s[k-1] += MyFunc->Eval(del/2 + j*del); // Add new contributions.
+  for(int k=1; k<=KMAX; k++){
+    s[k] = 0.0;
+    for(int j=0; j<N*pow(2,k-1); j++){
+      s[k] += MyFunc->Eval(del/2 + j*del); // Add new contributions.
     }
-    del = (b-a)/(N*pow(2,k-1));              // Halve interval for next step.
-    s[k-1] = 0.5*s[k-2] + del*s[k-1];        // Combine with previous terms.
-    temp[k-1] = s[k-1];                      // Save results for truncation step.
+    del = (b-a)/(N*pow(2,k));              // Halve interval for next step.
+    s[k] = 0.5*s[k-1] + del*s[k];          // Combine with previous terms.
+    temp[k] = s[k];                        // Save results for truncation step.
 
     // Truncate terms to improve estimate.
-    for(int l=2; l<=k; l++){
-      ss = (pow(4,l-1)*temp[k-1]-temp[l-2]) / (pow(4,l-1)-1); // Leading error term
-      temp[l-2] = temp[k-1];                                  // Remove unnecessary terms.
-      temp[k-1] = ss;                                         // Save new best estimate.  
+    for(int l=1; l<=k; l++){
+      ss = (pow(4,l)*temp[k]-temp[l-1]) / (pow(4,l)-1); // Leading error term
+      temp[l-1] = temp[k];                              // Remove unnecessary terms.
+      temp[k] = ss;                                     // Save new best estimate.  
       
       if(l == k){
 	    // Check convergence.
         if(fabs(ss-ss_old) <= Err){
+#ifdef VERBOSE_INTEGRATE
+          printf("Estimate converged to accuracy %+1.3e in %d function evaluations.\n",\
+                Err, int(N*pow(2,k)+1));
+#endif
 	      *result = ss;
           return 0;
 	    }
