@@ -2,6 +2,17 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+
+Func::Func(double& _a, double& _b):
+    a(_a), b(_b){};
+
+double Func::Eval(double x){
+    return cos(M_PI*x*x/2);
+    //return pow(x, a-1) * pow(1-x,b-1);
+}
+
+
 void BetaDist(double beta_a, double beta_b, int NumElem, double *h)
 {
   // Calculate prefactor for this choice of a and b.

@@ -1,6 +1,18 @@
 #ifndef GEN_PSD_H
 #define GEN_PSD_H
 
+//define function to be integrated
+class Func{
+
+ public:
+  const double a, b;
+
+  Func(double&, double&);
+
+  double Eval(double);
+
+};
+
 /*
   Function BetaDist
 
@@ -20,5 +32,6 @@ void BetaDist(double, double, int, double*);
                to eqn. 5.18 p.140 [RAD11].
 */
 double ReducedDiam(double*, double*, double*);
+
 
 #endif // GEN_PSD_H

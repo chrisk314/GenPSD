@@ -7,16 +7,20 @@
 
 #include "GenPSD.h"
 #include "integrate.h"
+//#ifdef __cplusplus
+//extern "C"
+//{
+//#endif
+//#include "integrate.h"
+//#ifdef __cplusplus
+//}
+//#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327
 #endif
 #define MAX_STR_LEN 50
 
-//define function to be integrated
-double myfunc(double x){
-  return cos(M_PI*x*x/2);
-}
 
 int main(int argc, char **argv){
   
@@ -44,6 +48,7 @@ int main(int argc, char **argv){
   int N_p_min, N_pc_min, N_tot;
   int N_c, *N;
   char line[MAX_STR_LEN];
+  Func *MyFunc;
 
   // Read parameters from file
   while( fgets(line, MAX_STR_LEN, InputFile) != NULL ){
@@ -91,29 +96,30 @@ int main(int argc, char **argv){
   }
 
   // Display input parameters.
-  printf("Input parameters read from file %s:\n\
-        beta_a = %lf\n\
-        beta_b = %lf\n\
-        d_min = %lf\n\
-        d_max = %lf\n\
-        C_rep = %lf\n\
-        N_p_min = %d\n\
-        N_pc_min = %d\n\
-        N_c = %d\n",\
+  printf("Input parameters read from file %s:\n"\
+        "beta_a = %lf\n"\
+        "beta_b = %lf\n"\
+        "d_min = %lf\n"\
+        "d_max = %lf\n"\
+        "C_rep = %lf\n"\
+        "N_p_min = %d\n"\
+        "N_pc_min = %d\n"\
+        "N_c = %d\n",\
         InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c);
 
   // Allocate memory for analytical grading curve and PSD class populations.
   //h = malloc( (N_c+1) * sizeof(double) );
   //N = malloc( N_c * sizeof(int) );
-  h = calloc(N_c+1, sizeof(double));
-  N = calloc(N_c, sizeof(int));
-  
+  h = (double*)calloc(N_c+1, sizeof(double));
+  N = (int*)calloc(N_c, sizeof(int));
+  MyFunc = new Func(beta_a, beta_b);
+
   // Generate analytical grading curve with BetaDist.  
   BetaDist(beta_a, beta_b, N_c+1, h);
 
   for(int i=0; i<=N_c; i++) printf("h[%d] = %lf\n", i, h[i]);
   double IntResult;
-  if( Integrate(&IntResult, 0, 4, 10, 26, 1E-10, myfunc) == 1 ){
+  if( Integrate(&IntResult, 0, 4, 10, 26, 1E-10, MyFunc) == 1 ){
     printf("Function Integrate did not converge. Program will exit.\n");
     exit(-1);
   }
