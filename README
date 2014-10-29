@@ -1,0 +1,23 @@
+file: GenPSD README
+
+Author: Chris Knight
+
+Contact: csk13@imperial.ac.uk
+
+Date Created: 28/10/14
+
+Description: GenPSD produces a particle size distribution (PSD) as specified
+by parameters supplied by the user in a plain text file.
+
+Input parameters:
+
+a, b         - Specify the analytical form of the PSD as given by the beta 
+               distribution [VOI07]. Eqn. 5.15 p.139 [RAD11].
+d_max, d_min - Maximum and minimum particle diameters in distribution.
+N_p_min      - Minimum required number of particles in distribution.
+N_pc_min     - Minimum required number of particles in each size class.
+N_c          - Required number of size classes.
+C_r          - Representativity criterion; degree of statistical error as
+               given by eqn. 5.24 p.143 [RAD11]
+
+Usage: $ GenPSD < input_file
