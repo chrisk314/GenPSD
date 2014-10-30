@@ -47,6 +47,7 @@ int main(int argc, char **argv){
   double C_rep, *h;
   int N_p_min, N_pc_min, N_tot;
   int N_c, *N;
+  double *y;
   char line[MAX_STR_LEN];
 
   // Read parameters from file
@@ -124,6 +125,14 @@ int main(int argc, char **argv){
   GenPopulations(&N_tot, N_c, N_pc_min, N_p_min, N, h, d_min, d_max);
   for(int i=0; i<N_c; i++){
     printf("N[%d] = %d\n", i, N[i]);
+  }
+
+  y = (double*)calloc(N_tot, sizeof(double));
+
+  double seed = 1E-2; // SEED MUST BE FROM A RANDOMLY VARYING SOURCE.
+  GenPSD(N_tot, N_c, N, y, d_min, d_max, seed);
+  for(int i=0; i<N_tot; i++){
+    printf("y[%d] = %1.5f\n", i, y[i]);
   }
 
   //double IntResult;

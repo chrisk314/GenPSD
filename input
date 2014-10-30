@@ -1,11 +1,11 @@
 # Input file for GenPSD
 # See README for details of parameters
 
-beta_a 3.0
-beta_b 4.0
-d_min  1E-4
-d_max  1E-3
-C_r    1E-3
-N_p_min 2000
-N_pc_min 10
-N_c      10
+beta_a    4.0
+beta_b    4.0
+d_min     1E-4
+d_max     1E-3
+C_r       1E-3
+N_p_min   4000
+N_pc_min  4
+N_c       10 

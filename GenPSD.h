@@ -30,7 +30,7 @@ int GenPopulations(int*, int, int, int, int*, double*, double, double);
 double GenDia(double, double, double);
 
 
-void GenPSD(int, int, double*, int*, double, double, double);
+void GenPSD(int, int, int*, double*, double, double, double);
 
 
 /*

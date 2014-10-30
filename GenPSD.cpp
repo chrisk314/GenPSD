@@ -62,19 +62,27 @@ int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
                     double *h, double d_min, double d_max){
     
   double DiaDelta;                      // Width of each size class interval.
+  double MeanDia;
   double VolMeanDia;                    // Mean volume for given size class.
+  double TotalVolEst;
   double SpherePrefactor;               
   int N_min=VERY_BIG_INT, SumParticles;
 
   DiaDelta = (d_max - d_min) / N_c;
-  SpherePrefactor = (4.0/3.0) * M_PI;
+  SpherePrefactor = (1.0/6.0) * M_PI;
+
+  // Estimate total volume.
+  MeanDia = GenDia(d_min, d_max, 0.5);
+  VolMeanDia = SpherePrefactor * MeanDia * MeanDia * MeanDia;  //
+  TotalVolEst = VolMeanDia * N_p_min;
 
   // Get first estimate for size class populations from grading curve h(d).
   SumParticles = 0;
   for(int i=0; i<N_c; i++){
-    VolMeanDia = SpherePrefactor \
-            * GenDia(d_min + i*DiaDelta, d_min + (i+1)*DiaDelta, 0.5);
-    N[i] = (h[i+1] - h[i]) / VolMeanDia;
+    MeanDia = GenDia(d_min + i*DiaDelta, d_min + (i+1)*DiaDelta, 0.5);
+    VolMeanDia = SpherePrefactor * MeanDia * MeanDia * MeanDia;
+    N[i] = (h[i+1] - h[i]) * ( TotalVolEst / VolMeanDia ); // Using volume esimate.
+    //N[i] = (h[i+1] - h[i]) / VolMeanDia;  // Assuming unit volume.
     printf("N[%d] = %d\n", i, N[i]);
     SumParticles += N[i];
     if(N[i] < N_min){
@@ -115,22 +123,26 @@ int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
 }
 
 
-void GenPSD(int N_tot, int N_c, double *y, int *N, double d_min, double d_max,\
+void GenPSD(int N_tot, int N_c, int *N, double *y, double d_min, double d_max,\
                 double seed){
     
   boost::mt19937 MersenneTwister(seed);
   boost::uniform_real<float> uniform_range( 0.0, 1.0 );
   boost::variate_generator< boost::mt19937, boost::uniform_real<float> >\
     Dice(MersenneTwister, uniform_range);
+  
+  double DiaDelta, DiaStart, DiaStop;
 
-  double DiaDelta = (d_max - d_min) / N_c;
-
+  DiaDelta = (d_max - d_min) / N_c; // Class diameter width.
+  
   for(int i=0; i<N_c; i++){
-    int offset = 0;
+    DiaStart = d_min + i*DiaDelta;
+    DiaStop = DiaStart + DiaDelta;
+    int offset = 0; // Track first element in y[] for current size class.
     for(int j=0; j<N[i]; j++){
-      y[offset+j] = GenDia(d_min + i*DiaDelta, d_min + (i+1)*DiaDelta, Dice()); 
+      y[offset+j] = GenDia(DiaStart, DiaStop, Dice()); 
     }
-    SelectionSort(&y[offset], N[i]);
+    SelectionSort(&y[offset], N[i]); // Sort diameters numerically.
     offset += N[i];
   }
 
