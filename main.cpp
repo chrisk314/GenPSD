@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <iostream>
+#include <ctime>
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -17,14 +19,15 @@
 //#endif
 
 #ifndef M_PI
-#define M_PI 3.14159265358979323846264338327
+//#define M_PI 3.14159265358979323846264338327
+#define M_PI 3.141592653589793
 #endif
 #define MAX_STR_LEN 50
 
 
 int main(int argc, char **argv){
   
-  char *InputFileName;
+  char *InputFileName, *OutputFileName;
   FILE *InputFile, *OutputFile;
 
   // Check correct number of command line args and get file handle.
@@ -96,9 +99,9 @@ int main(int argc, char **argv){
   }
 
   // Display input parameters.
-  printf("\n!!-----------------------------------------------------!!\n");
+  printf("\noo-----------------------------------------------------\n");
   printf("Input parameters read from file %s:\n"\
-        "!!-----------------------------------------------------!!\n"\
+        "oo-----------------------------------------------------!!\n"\
         "beta_a = %lf\n"\
         "beta_b = %lf\n"\
         "d_min = %lf\n"\
@@ -126,14 +129,15 @@ int main(int argc, char **argv){
   for(int i=0; i<N_c; i++){
     printf("N[%d] = %d\n", i, N[i]);
   }
-
+  
   y = (double*)calloc(N_tot, sizeof(double));
 
+  // Generate particle size distribution.
   double seed = 1E-2; // SEED MUST BE FROM A RANDOMLY VARYING SOURCE.
   GenPSD(N_tot, N_c, N, y, d_min, d_max, seed);
-  for(int i=0; i<N_tot; i++){
-    printf("y[%d] = %1.5f\n", i, y[i]);
-  }
+  //for(int i=0; i<N_tot; i++){
+  //  printf("y[%d] = %1.5e\n", i, y[i]);
+  //}
 
   //double IntResult;
   //if( Integrate(&IntResult, -4, 0, 10, 26, 1E-10, MyFunc) == 1 ){
@@ -142,6 +146,44 @@ int main(int argc, char **argv){
   //}
   //printf("IntResult = %+1.15e\n", IntResult);
 
-  return 0;
+  if( CheckPSD(y, N_tot, h, N_c, C_rep) == 0 ){
+	printf("PSD good\n");
+  }
+  else{
+	printf("PSD bad. Program will exit\n");
+	exit(-1);
+  }
 
+  // Write PSD to data file.
+  OutputFileName = "psd.dat";
+  OutputFile = fopen(OutputFileName,"w");
+  if(OutputFile == NULL){
+      printf("Output file %s could not be opened. Program will exit.\n", OutputFileName);
+      exit(-1);
+  }
+  else{
+	  // Get current time for output
+	  time_t rawtime;
+	  struct tm *timeinfo;
+	  char buffer[80];
+
+	  time(&rawtime);
+	  timeinfo = localtime(&rawtime);
+
+	  strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
+	  std::string time_str(buffer);
+
+	  fprintf(OutputFile, "# Particle size distribution file generated with "\
+			  "GenPSD on %s\n", time_str.c_str());
+
+	  double SphereVol, SumVol=0.0;
+	  for(int i=0; i<N_tot; i++){
+		SphereVol = M_PI * y[i] * y[i] * y[i] / 6.0;
+		SumVol += SphereVol;
+		fprintf(OutputFile, "%1.15e %1.15e %1.15e\n", y[i], SphereVol, SumVol);
+	  }
+  }
+  fclose(OutputFile);
+
+  return 0;
 }

@@ -48,4 +48,7 @@ double ReducedDiam(double*, double*, double*);
 void SelectionSort(double*, int);
 
 
+int CheckPSD(double*, int, double*, int, double);
+
+
 #endif // GEN_PSD_H

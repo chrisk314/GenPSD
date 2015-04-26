@@ -3,9 +3,10 @@
 
 beta_a    4.0
 beta_b    4.0
-d_min     1E-4
-d_max     1E-3
+d_min     1E-3
+d_max     2E-3
 C_r       1E-3
-N_p_min   4000
-N_pc_min  4
-N_c       10 
+N_p_min   500  # Test
+N_p_max   20000 # Should be manageable for your system
+N_pc_min  1
+N_c       8 
