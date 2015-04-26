@@ -20,4 +20,4 @@ N_c          - Required number of size classes.
 C_r          - Representativity criterion; degree of statistical error as
                given by eqn. 5.24 p.143 [RAD11]
 
-Usage: $ GenPSD < input_file
+Usage: $ GenPSD <input_file>
