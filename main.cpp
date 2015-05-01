@@ -115,8 +115,9 @@ int main(int argc, char **argv){
 		  "C_rep = %lf\n"\
 		  "N_p_min = %d\n"\
 		  "N_pc_min = %d\n"\
-		  "N_c = %d\n",\
-		  InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c);
+		  "N_c = %d\n"\
+		  "class_uni = %d\n",\
+		  InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c, class_uni);
 
   
   // ------------------------------------------------------------------------------------
