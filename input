@@ -9,4 +9,5 @@ C_r       1E-3
 N_p_min   10000  # Test
 N_p_max   50000 # Should be manageable for your system
 N_pc_min  10
-N_c       10 
+N_c       8 
+class_uni 0

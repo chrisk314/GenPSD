@@ -23,7 +23,7 @@ double Func::Eval(double x){
 }
 
 
-int BetaDist(double beta_a, double beta_b, int NumElem, double *h){
+int BetaDist(double beta_a, double beta_b, int NumElem, double *dia, double *h){
 
   double B_factor;      // Prefactor for this choice of a and b.
   double IntStart=0.0, IntStop=1.0, x;
@@ -38,7 +38,7 @@ int BetaDist(double beta_a, double beta_b, int NumElem, double *h){
   // Perform integral to calculate grading curve values.
   h[0] = 0;
   for(int i=1; i<NumElem; i++){
-    x = i*IntStop/(NumElem-1);
+    x = (dia[i] - dia[0]) / (dia[NumElem-1] - dia[0]);
     if( Integrate(&h[i], IntStart, x, IntIter, IntSubDiv, IntErr,\
             MyFunc) != 0 )
     {
@@ -85,6 +85,7 @@ int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
   TotalVolEst = VolMeanDia * N_p_min;
 
   // Get first estimate for size class populations from grading curve h(d).
+  printf("\nGrading class trial populations:\n");
   SumParticles = 0;
   for(int i=0; i<N_c; i++){
     MeanDia = GenDia(d_min + i*DiaDelta, d_min + (i+1)*DiaDelta, 0.5);

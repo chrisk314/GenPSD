@@ -33,24 +33,25 @@ int main(int argc, char **argv){
   // Check correct number of command line args and get file handle.
   if( !(argc == 2) ){
     printf("Invalid number of command line arguments. Program will exit.\n\
-            Usage: GenPSD input_file\n");
-    exit(-1);
+            Usage: GenPSD <input file>\n");
+    return 1;
   }
   else{
     InputFileName = argv[1];
     InputFile = fopen(InputFileName, "r");
     if(InputFile == NULL){
       printf("Input file %s could not be opened. Program will exit.\n", argv[1]);
-      exit(-1);
+      return 1;
     }
   }
 
   double beta_a, beta_b;
   double d_min, d_max;
-  double C_rep, *h;
+  double *dia, *h;
   int N_p_min, N_pc_min, N_tot;
   int N_c, *N;
-  double *y;
+  double *y, C_rep;
+  bool class_uni;
   char line[MAX_STR_LEN];
 
   // Read parameters from file
@@ -96,85 +97,113 @@ int main(int argc, char **argv){
       SubStr = strtok(NULL, "\n");
       N_c = atoi(SubStr);
     }
+    else if( strncasecmp(line, "class_uni", 9) == 0 ){
+      strtok(line, " ");
+      SubStr = strtok(NULL, "\n");
+      class_uni = atoi(SubStr);
+    }
   }
 
   // Display input parameters.
-  printf("\noo-----------------------------------------------------\n");
-  printf("Input parameters read from file %s:\n"\
-        "oo-----------------------------------------------------!!\n"\
-        "beta_a = %lf\n"\
-        "beta_b = %lf\n"\
-        "d_min = %lf\n"\
-        "d_max = %lf\n"\
-        "C_rep = %lf\n"\
-        "N_p_min = %d\n"\
-        "N_pc_min = %d\n"\
-        "N_c = %d\n\n",\
-        InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c);
+  printf("\n*-----------------------------------------------------\n"\
+  	  	  "*\tInput parameters read from file %s:\n"\
+		  "*-----------------------------------------------------\n\n"\
+		  "beta_a = %lf\n"\
+		  "beta_b = %lf\n"\
+		  "d_min = %lf\n"\
+		  "d_max = %lf\n"\
+		  "C_rep = %lf\n"\
+		  "N_p_min = %d\n"\
+		  "N_pc_min = %d\n"\
+		  "N_c = %d\n",\
+		  InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c);
+
   
+  // ------------------------------------------------------------------------------------
+  // Generate grading curve, populate classes and generate PSD
+
   // Allocate memory for analytical grading curve and PSD class populations.
   //h = malloc( (N_c+1) * sizeof(double) );
   //N = malloc( N_c * sizeof(int) );
+  dia = (double*)calloc(N_c+1, sizeof(double));
   h = (double*)calloc(N_c+1, sizeof(double));
   N = (int*)calloc(N_c, sizeof(int));
 
-  // Generate analytical grading curve with BetaDist.  
-  BetaDist(beta_a, beta_b, N_c+1, h);
+  // Calculate size class boundaries
+  dia[0] = d_min;
+  dia[N_c] = d_max;
+  if(class_uni){
+	  // Uniform class width
+	  double dia_class_width = (d_max - d_min) / N_c;
+	  for(int i=1; i<N_c; i++){
+		  dia[i] = dia[i-1] + dia_class_width;
+	  }
+  }
+  else{
+	  // Geometric class width
+	  double geo_ratio = exp( (log(d_max) - log(d_min)) / N_c );
+	  double dia_class_width = ((1 - geo_ratio) / (1 - pow(geo_ratio, N_c))) * (d_max - d_min);
+	  for(int i=1; i<N_c; i++){
+		  dia[i] = dia[i-1] + dia_class_width * pow(geo_ratio, i-1);
+	  }
+  }
+  printf("\n*-----------------------------------------------------\n"\
+		  "Size class boundaries:\n");
+  for(int i=0; i<=N_c; i++){
+    printf("dia[%d] = %lf\n", i, dia[i]);
+  }
+
+  // Generate analytical grading curve with BetaDist.
+  printf("\nAnalytical grading curve:\n");
+  BetaDist(beta_a, beta_b, N_c+1, dia, h);
   for(int i=0; i<=N_c; i++){
     printf("h[%d] = %lf\n", i, h[i]);
   }
 
   // Estimate populations from grading curve with constraints.
   GenPopulations(&N_tot, N_c, N_pc_min, N_p_min, N, h, d_min, d_max);
+  printf("\nGrading class populations:\n");
   for(int i=0; i<N_c; i++){
     printf("N[%d] = %d\n", i, N[i]);
   }
+  printf("\nTotal number of particles in PSD %d\n", N_tot);
   
   y = (double*)calloc(N_tot, sizeof(double));
 
   // Generate particle size distribution.
-  double seed = 1E-2; // SEED MUST BE FROM A RANDOMLY VARYING SOURCE.
-  GenPSD(N_tot, N_c, N, y, d_min, d_max, seed);
-  //for(int i=0; i<N_tot; i++){
-  //  printf("y[%d] = %1.5e\n", i, y[i]);
-  //}
+  GenPSD(N_tot, N_c, N, y, d_min, d_max, time(NULL));
 
-  //double IntResult;
-  //if( Integrate(&IntResult, -4, 0, 10, 26, 1E-10, MyFunc) == 1 ){
-  //  printf("Function Integrate did not converge. Program will exit.\n");
-  //  exit(-1);
-  //}
-  //printf("IntResult = %+1.15e\n", IntResult);
-
+  // Check statistical degree of representativity between generated and target PSD
   if( CheckPSD(y, N_tot, h, N_c, C_rep) == 0 ){
 	printf("PSD good\n");
   }
   else{
 	printf("PSD bad. Program will exit\n");
-	exit(-1);
+	return 1;
   }
 
+
+  // ------------------------------------------------------------------------------------
   // Write PSD to data file.
+
   OutputFileName = "psd.dat";
   OutputFile = fopen(OutputFileName,"w");
   if(OutputFile == NULL){
       printf("Output file %s could not be opened. Program will exit.\n", OutputFileName);
-      exit(-1);
+      return 1;
   }
   else{
 	  // Get current time for output
 	  time_t rawtime;
 	  struct tm *timeinfo;
 	  char buffer[80];
-
 	  time(&rawtime);
 	  timeinfo = localtime(&rawtime);
-
-	  strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
+	  strftime(buffer, 80, "%d-%m-%Y %I:%M:%S", timeinfo);
 	  std::string time_str(buffer);
 
-	  fprintf(OutputFile, "# Particle size distribution file generated with "\
-			  "GenPSD on %s\n", time_str.c_str());
+	  fprintf(OutputFile, "# Particle size distribution file %s generated with "\
+			  "GenPSD on %s\n", OutputFileName, time_str.c_str());
 
 	  double SphereVol, SumVol=0.0;
 	  for(int i=0; i<N_tot; i++){

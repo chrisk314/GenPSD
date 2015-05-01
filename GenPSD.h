@@ -21,7 +21,7 @@ class Func{
                curve date according to the expression for the beta distribution
                described in [VOI07]. Eqn. 5.15 p.139 in [RAD11].
 */
-int BetaDist(double, double, int, double*);
+int BetaDist(double, double, int, double*, double*);
 
 
 int GenPopulations(int*, int, int, int, int*, double*, double, double);
