@@ -7,24 +7,23 @@
 ############################################################################
 
 TARGET      = GenPSD
-SRCS      = main.cpp GenPSD.cpp integrate.cpp
-OBJS      = $(SRCS:.cpp=.o)
-
+SRCS	:= $(wildcard src/*.cpp)
+OBJS	:= $(addprefix obj/,$(notdir $(SRCS:.cpp=.o)))
 BOOST_LIBS	= -lboost_timer -lboost_system
   
 CC      = g++
-COMPILE = $(CC) -std=c++11 -c $(CFLAGS)
-CFLAGS      = -g -w
+COMPILE = $(CC) $(CFLAGS) -c
+CFLAGS      = -g -w -std=c++11
 LINK      = $(CC) -o
 
 
 $(TARGET):$(OBJS)	
 	$(LINK) $(TARGET) $(OBJS) $(INCLUDES) $(OGL_LIBS) $(BOOST_LIBS)
 
-.cpp.o:
-	$(COMPILE) $(INCLUDES) $(OGL_LIBS) $(BOOST_LIBS) $< -o $@ 
+obj/%.o: src/%.cpp
+	$(COMPILE) $(INCLUDES) $(OGL_LIBS) $(BOOST_LIBS) -o $@ $<
 
 all:$(TARGET)
 
 clean:
-	rm -f *.o *.x
+	rm -f obj/*.o $(TARGET)

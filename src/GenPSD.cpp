@@ -65,9 +65,8 @@ double GenDia(double d_lower, double d_upper, double y){
 
 
 int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
-                    double *h, double d_min, double d_max){
+                    double *h, double *dia){
     
-  double DiaDelta;                      // Width of each size class interval.
   double MeanDia;
   double VolMeanDia;                    // Mean volume for given size class.
   double TotalVolEst;
@@ -76,28 +75,33 @@ int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
   double N_min=VERY_BIG;
   int SumParticles;
 
-  DiaDelta = (d_max - d_min) / N_c;
   SpherePrefactor = (1.0/6.0) * M_PI;
 
   // Estimate total volume.
-  MeanDia = GenDia(d_min, d_max, 0.5);
-  VolMeanDia = SpherePrefactor * MeanDia * MeanDia * MeanDia;  //
+  //MeanDia = GenDia(dia[0], dia[N_c], 0.5);// incorrect! Only correct when grading is uniform by volume fraction!
+  for(int i=0; i<=N_c; i++){
+	 if(h[i] > 0.5){
+		 MeanDia = dia[i-1] + ((0.5 - h[i-1]) / (h[i] - h[i-1])) * (dia[i] - dia[i-1]);
+		 break;
+	 }
+  }
+  VolMeanDia = SpherePrefactor * MeanDia * MeanDia * MeanDia;
   TotalVolEst = VolMeanDia * N_p_min;
 
   // Get first estimate for size class populations from grading curve h(d).
   printf("\nGrading class trial populations:\n");
   SumParticles = 0;
   for(int i=0; i<N_c; i++){
-    MeanDia = GenDia(d_min + i*DiaDelta, d_min + (i+1)*DiaDelta, 0.5);
+    MeanDia = GenDia(dia[i], dia[i+1], 0.5);
     VolMeanDia = SpherePrefactor * MeanDia * MeanDia * MeanDia;
-    N_try[i] = (h[i+1] - h[i]) * ( TotalVolEst / VolMeanDia ); // Using volume esimate.
-    //N_try[i] = (h[i+1] - h[i]) / VolMeanDia;  // Assuming unit volume.
+    N_try[i] = (h[i+1] - h[i]) * TotalVolEst / VolMeanDia ; // Using volume esimate.
+
     N[i] = int(N_try[i]);
-    printf("N_try[%d] = %1.4lf\n", i, N_try[i]);
     SumParticles += N[i];
     if(N_try[i] < N_min){
       N_min = N_try[i];
     }
+    printf("N_try[%d] = %1.4lf\n", i, N_try[i]);
   }
 
   // Check that all size classes contain at least the minimum required number
@@ -133,26 +137,15 @@ int GenPopulations(int *N_tot, int N_c, int N_pc_min, int N_p_min, int *N,\
 }
 
 
-void GenPSD(int N_tot, int N_c, int *N, double *y, double d_min, double d_max,\
-                double seed){
-    
-  //boost::mt19937 MersenneTwister(seed);
-  //boost::uniform_real<float> uniform_range( 0.0, 1.0 );
-  //boost::variate_generator< boost::mt19937, boost::uniform_real<float> >\
-  //  Dice(MersenneTwister, uniform_range);
+void GenPSD(int N_tot, int N_c, int *N, double *y, double *dia, double seed){
   
   int offset;
-  double DiaDelta, DiaStart, DiaStop;
   RandGenRealUni<double> Dice(seed, 0.0, 1.0);
 
-  DiaDelta = (d_max - d_min) / N_c; // Class diameter width.
-  
   offset = 0;
   for(int i=0; i<N_c; i++){
-    DiaStart = d_min + i*DiaDelta;
-    DiaStop = DiaStart + DiaDelta;
     for(int j=0; j<N[i]; j++){
-      y[offset+j] = GenDia(DiaStart, DiaStop, Dice());
+      y[offset+j] = GenDia(dia[i], dia[i+1], Dice());
     }
     SelectionSort(&y[offset], N[i]); // Sort diameters numerically.
     offset += N[i];
@@ -181,11 +174,32 @@ void SelectionSort(double *a, int array_size){
 }
 
 
-int CheckPSD(double *psd, int N_tot, double *h, int N_c, double C_r){
-	if(false){
-		return 1;
+double CheckPSD(double *psd, int N_tot, double *h, int N_c, double *dia){
+
+	// Calculate accumulated volumes for each class
+	double AccumVol[N_c], TotalVol, C_r;
+
+	AccumVol[0] = 0.0;
+	for(int i=0, j=0; i<N_tot; i++){
+		if(psd[i] > dia[j+1]){
+			j++;
+			AccumVol[j] = AccumVol[j-1];
+		}
+		AccumVol[j] += M_PI * psd[i] * psd[i] * psd[i] / 6.0;
 	}
-	else{
-		return 0;
+
+	// Normalise accumulated volumes
+	TotalVol = AccumVol[N_c-1];
+	for(int i=0; i<N_c; i++){
+		AccumVol[i] /= TotalVol;
 	}
+
+	// Calculate regression coefficient
+	C_r = 0.0;
+	for(int i=0; i<N_c; i++){
+		C_r += (AccumVol[i] - h[i+1]) * (AccumVol[i] - h[i+1]);
+	}
+	C_r = sqrt(C_r);
+
+	return C_r;
 }

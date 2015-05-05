@@ -50,7 +50,7 @@ int main(int argc, char **argv){
   double *dia, *h;
   int N_p_min, N_pc_min, N_tot;
   int N_c, *N;
-  double *y, C_rep;
+  double *y, C_rep_target, C_rep;
   bool class_uni;
   char line[MAX_STR_LEN];
 
@@ -80,7 +80,7 @@ int main(int argc, char **argv){
     else if( strncasecmp(line, "C_rep", 5) == 0 ){
       strtok(line, " ");
       SubStr = strtok(NULL, "\n");
-      C_rep = strtod(SubStr, &SubStrEnd);
+      C_rep_target = strtod(SubStr, &SubStrEnd);
     }
     else if( strncasecmp(line, "N_p_min", 7) == 0 ){
       strtok(line, " ");
@@ -117,7 +117,8 @@ int main(int argc, char **argv){
 		  "N_pc_min = %d\n"\
 		  "N_c = %d\n"\
 		  "class_uni = %d\n",\
-		  InputFileName, beta_a, beta_b, d_min, d_max, C_rep, N_p_min, N_pc_min, N_c, class_uni);
+		  InputFileName, beta_a, beta_b, d_min, d_max, C_rep_target, N_p_min,\
+		  	  N_pc_min, N_c, class_uni);
 
   
   // ------------------------------------------------------------------------------------
@@ -155,31 +156,32 @@ int main(int argc, char **argv){
   }
 
   // Generate analytical grading curve with BetaDist.
-  printf("\nAnalytical grading curve:\n");
   BetaDist(beta_a, beta_b, N_c+1, dia, h);
+  printf("\nAnalytical grading curve:\n");
   for(int i=0; i<=N_c; i++){
     printf("h[%d] = %lf\n", i, h[i]);
   }
 
   // Estimate populations from grading curve with constraints.
-  GenPopulations(&N_tot, N_c, N_pc_min, N_p_min, N, h, d_min, d_max);
+  GenPopulations(&N_tot, N_c, N_pc_min, N_p_min, N, h, dia);
   printf("\nGrading class populations:\n");
   for(int i=0; i<N_c; i++){
     printf("N[%d] = %d\n", i, N[i]);
   }
-  printf("\nTotal number of particles in PSD %d\n", N_tot);
+  printf("\nTotal number of particles in PSD %d.\n", N_tot);
   
   y = (double*)calloc(N_tot, sizeof(double));
 
   // Generate particle size distribution.
-  GenPSD(N_tot, N_c, N, y, d_min, d_max, time(NULL));
+  GenPSD(N_tot, N_c, N, y, dia, time(NULL));
 
   // Check statistical degree of representativity between generated and target PSD
-  if( CheckPSD(y, N_tot, h, N_c, C_rep) == 0 ){
-	printf("PSD good\n");
+  C_rep = CheckPSD(y, N_tot, h, N_c, dia);
+  if( C_rep <= C_rep_target ){
+	printf("Representativity criteria met with C_r = %1.3e.\n", C_rep);
   }
   else{
-	printf("PSD bad. Program will exit\n");
+	printf("Representativity criteria not met with C_r = %1.3e. Program will exit.\n", C_rep);
 	return 1;
   }
 
@@ -194,7 +196,9 @@ int main(int argc, char **argv){
       return 1;
   }
   else{
-	  // Get current time for output
+      printf("Writing PSD to file %s.\n", OutputFileName);
+
+      // Get current time for output
 	  time_t rawtime;
 	  struct tm *timeinfo;
 	  char buffer[80];
