@@ -18,10 +18,10 @@ LINK      = $(CC) -o
 
 
 $(TARGET):$(OBJS)	
-	$(LINK) $(TARGET) $(OBJS) $(INCLUDES) $(OGL_LIBS) $(BOOST_LIBS)
+	$(LINK) $(TARGET) $(OBJS) $(INCLUDES) $(BOOST_LIBS)
 
 obj/%.o: src/%.cpp
-	$(COMPILE) $(INCLUDES) $(OGL_LIBS) $(BOOST_LIBS) -o $@ $<
+	$(COMPILE) $(INCLUDES) $(BOOST_LIBS) -o $@ $<
 
 all:$(TARGET)
 
