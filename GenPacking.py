@@ -22,19 +22,6 @@ def getCubeIndex(pos):
             cubeIndex.append(i)
     return cubeIndex
 
-
-# Takes the position of a particle. Returns index of containing subdomain.
-def getCubeIndex2(pos):
-    cubeIndex = [None] * 3
-    for i in range(lCube):
-        if pos[0] > i*Sx and pos[0] < (i+1)*Sx:
-            cubeIndex[0] = i
-        if pos[1] > i*Sy and pos[1] < (i+1)*Sy:
-            cubeIndex[1] = i
-        if pos[2] > i*Sz and pos[2] < (i+2)*Sz:
-            cubeIndex[2] = i
-    return cubeIndex[2]*lCube2 + cubeIndex[1]*lCube + cubeIndex[0]
-
 # Generate random position
 def genPos():
     return [npr.rand() * Lx, npr.rand() * Ly, npr.rand() * Lz] 
@@ -127,6 +114,8 @@ partDia.sort()
 partDia.reverse()
 partDia = np.array(partDia)
 partRad = 0.5*partDia
+partPos = np.zeros((len(partDia),3))
+
 volActual = (math.pi/6) * sum(partDia**3)
 
 print("%d particles generated with volume %+1.4e within %+1.4e of target volume\n" \
@@ -169,10 +158,10 @@ class Cube:
         if self.numParts < 2:
             return False
         else:
-            for i in range(numParts-1):
-                dist = sum((self.partData[i,1:] - self.partData[self.numParts,1:])**2)
-                if dist - (self.partData[i,0] + self.partData[self.numParts,0] + tol) < 0.0:
-                    numParts -= 1
+            for i in range(self.numParts-1):
+                dist = sum((self.partData[i,1:] - self.partData[-1,1:])**2)
+                if dist - (self.partData[i,0] + self.partData[-1,0] + tol) < 0.0:
+                    self.numParts -= 1
                     return True
             return False
 
@@ -180,49 +169,54 @@ cubeData = [Cube(i) for i in range(numCubes)]
 
 # All possible ghost particle translation unit vectors
 pbcPerms = []
-for j in range(2):
-    for k in range(2):
-        for l in range(2):
-            pbcPerms.append([j, k, l])
-pbcPerms.pop(0)
+for i in range(2):
+    for j in range(2):
+        for k in range(2):
+            pbcPerms.append([i, j, k])
 
 # Fill domain with particles
 placed = 0
 for i in range(len(partDia)):
-    '''
     retry = True
+    
+    # Attempt to place particle. Loop until success.
     while retry:
         pos = genPos()                  # Generate a random position.
         cubeIndex = getCubeIndex(pos)   # Determine subdomain membership.
+        
         # Check for overlaps with particles in containing subdomains.
         for j in cubeIndex:
             cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
             retry = cubeData[j].checkOverlaps()
             if retry:
                 break
-        exit(1)
-        '''
-    while True:
-        retry = False
+            
         # Determine if particle crosses PBCs
         if not retry:
             pbc = np.zeros(3)
-            pos = np.zeros(3)
-            pos[0] = 0.5*Lx
-            pos[1] = Ly
             if checkPbc(pos, pbc):
-                print pos, pbc
-                print pbcPerms
-                print np.multiply(pbcPerms, pbc)
-                pbcPerms = unique_rows(np.multiply(pbcPerms, pbc))
-                print pbcPerms
-                posPerms = np.zeros((len(pbcPerms),3))
-                posPerms = pos + np.multiply(pbcPerms, [Lx, Ly, Lz])
-                print posPerms
-        exit(1)
-            
-            
-            
+                # Determine ghost translations.
+                posPerms = np.zeros((8,3))
+                posPerms = pos + np.multiply(np.multiply(pbcPerms, pbc), [Lx, Ly, Lz])
+                posPerms = unique_rows(posPerms)
+                posPerms = np.delete(posPerms, np.where((posPerms == pos).all(axis=1)), axis=0) 
+                
+                # Check for overlaps in ghost positions
+                for ghost in posPerms:
+                    cubeIndex = getCubeIndex(ghost)
+                    for j in cubeIndex: 
+                        cubeData[j].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
+                        retry = cubeData[j].checkOverlaps()
+                        if retry:
+                            break
+                    if retry:
+                        break
+        
+        # Succesful placement
+        if not retry:
+            partPos[i] = pos
+            print ("placed particle %d" %(i))
+            print pos
             
             
             
