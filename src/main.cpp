@@ -218,6 +218,36 @@ int main(int argc, char **argv){
 	  }
   }
   fclose(OutputFile);
+  // ------------------------------------------------------------------------------------
+  // Write grading to data file.
+
+  OutputFileName = "grading.dat";
+  OutputFile = fopen(OutputFileName,"w");
+  if(OutputFile == NULL){
+      printf("Output file %s could not be opened. Program will exit.\n", OutputFileName);
+      return 1;
+  }
+  else{
+      printf("Writing grading to file %s.\n", OutputFileName);
+
+      // Get current time for output
+	  time_t rawtime;
+	  struct tm *timeinfo;
+	  char buffer[80];
+	  time(&rawtime);
+	  timeinfo = localtime(&rawtime);
+	  strftime(buffer, 80, "%d-%m-%Y %I:%M:%S", timeinfo);
+	  std::string time_str(buffer);
+
+	  fprintf(OutputFile, "# Particle grading file %s generated with "\
+			  "GenPSD on %s\n", OutputFileName, time_str.c_str());
+
+	  double SphereVol, SumVol=0.0;
+	  for(int i=0; i<N_c; i++){
+		fprintf(OutputFile, "%1.15e %1.15e %1.15e\n", dia[i], dia[i+1], h[i+1]-h[i]);
+	  }
+  }
+  fclose(OutputFile);
 
   return 0;
 }

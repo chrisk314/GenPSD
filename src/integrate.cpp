@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define C4 0.498426033038178
 #define VERY_BIG 1E200
 //#define VERBOSE_INTEGRATE
 
