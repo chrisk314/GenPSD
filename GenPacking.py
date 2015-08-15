@@ -109,8 +109,8 @@ for gradClass in gradData:
 meanDia = 0.5 * (gradData[:,0] + gradData[:,1])         # Class mean particle diameters
 classPartVol = (math.pi/6) * meanDia[:]**3 * gradData[:,2]  # Class mean particle volumes
 meanPartVol = sum(classPartVol)                   # Global mean particle volume
-estNumParts = domainPartVol / meanPartVol             # Estimated number of particles
-classVol = estNumParts * classPartVol               # Class volumes
+numPartsEst = domainPartVol / meanPartVol             # Estimated number of particles
+classVol = numPartsEst * classPartVol               # Class volumes
 
 # Generate particle diameters
 partDia = []
@@ -127,6 +127,7 @@ for i in reversed(range(len(gradData))):
         overflowVol += classVol[i] - (accumVol - addVol)
 
 # Sort diameters from largest to smallest
+numPartsAttempt = len(partDia)
 partDia.sort()
 partDia.reverse()
 partDia = np.array(partDia)
@@ -136,12 +137,12 @@ partPos = np.zeros((len(partDia),3))
 volActual = (math.pi/6) * sum(partDia**3)
 
 print("%d particles generated with volume %+1.4e within %+1.4e of target volume\n" \
-      %(len(partDia), volActual, abs(domainPartVol - volActual)/domainPartVol))
+      %(numPartsAttempt, volActual, abs(domainPartVol - volActual)/domainPartVol))
 
 # ------------------------------------------------------------------------------
 # Split domain into subdomains to reduce neighbour search overhead
 # ------------------------------------------------------------------------------
-lCube = int(math.ceil((float(estNumParts)/100)**(1.0/3.0)))
+lCube = int(math.ceil((float(numPartsAttempt)/100)**(1.0/3.0)))
 while lCube > 1:
   Sx = Lx/lCube
   if (Sx+partDia[0])/(2*partDia[0]) < 3:
@@ -157,15 +158,15 @@ numCubes = lCube**3
 
 tol = 1.0e-8*partDia[0]
 
-estNumPartsCube = math.floor((1.4 * estNumParts) / numCubes)
-if estNumPartsCube > estNumParts:
-  estNumPartsCube = estNumParts
+numPartsCubeEst = math.floor((1.4 * numPartsAttempt) / numCubes)
+if numPartsCubeEst > numPartsAttempt:
+  numPartsCubeEst = numPartsAttempt
 
 # Cube data structure storing boundaries of subdomains and particle lists
 class Cube:
   # Initialise subdomain bounds and allocate memory 
   def __init__(self, index):
-    self.partData = np.empty((estNumPartsCube,4))
+    self.partData = np.empty((numPartsCubeEst,4))
     self.bounds = np.empty(6)
     self.numParts = 0
     self.bounds[0] = (index % lCube) * Sx - (partRad[0] + tol);
@@ -282,15 +283,15 @@ for i in range(len(partDia)):
 # ------------------------------------------------------------------------------
 # Output data to file
 # ------------------------------------------------------------------------------
-totalParts = len(partDia)
+numPartsFinal = len(partDia)
 packingFile = 'packing.txt'
 print("Placed %d of %d particles. Writing data to file %s."\
-      %(totalParts, estNumParts, packingFile))
+      %(numPartsFinal, numPartsAttempt, packingFile))
 outFile = open(packingFile, 'w')
-outFile.write("NUMPARTS\n%d\n"%totalParts)
+outFile.write("NUMPARTS\n%d\n"%numPartsFinal)
 outFile.write("BOXDIMS\n%+1.15e %+1.15e %+1.15e\n"%(Lx, Ly, Lz))
 outFile.write("PARTDATA\n")
-for i in range(totalParts):
+for i in range(numPartsFinal):
   outFile.write("%+1.15e %+1.15e %+1.15e %+1.15e\n"\
                 %(partRad[i], partPos[i,0], partPos[i,1], partPos[i,2]))        
 outFile.close()
