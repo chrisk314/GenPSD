@@ -276,7 +276,7 @@ for i in range(len(partDia)):
     # Succesful placement
     if not retry:
       partPos[i] = pos
-      print("%s: Placed particle %d at pos %f %f %f in %d attempts"\
+      print("%s: Placed particle %d at %f %f %f in %d attempts"\
             %(thisScript, i, pos[0], pos[1], pos[2], tries))
   
   if tries > maxTries:
@@ -286,9 +286,23 @@ for i in range(len(partDia)):
     break
   
 # ------------------------------------------------------------------------------
-# Output data to file
+# Check for errors and output data to file
 # ------------------------------------------------------------------------------
 numPartsFinal = len(partDia)
+# DEBUG
+for i in range(numPartsFinal):
+  if ((partPos[i,0] < -tol or partPos[i,0] > Lx+tol) or\
+      (partPos[i,1] < -tol or partPos[i,1] > Ly+tol) or\
+      (partPos[i,2] < -tol or partPos[i,2] > Lz+tol)):
+    print("%s: Error: Particle %d out of bounds. Program will exit."%(thisScript, i))
+    exit(1)
+  for j in range(numPartsFinal, i):
+    dist = sum((partPos[i,1:] - partPos[j,1:])**2)
+    if dist - (partRad[i] + partRad[j] + tol)**2 < 0.0:
+      print("%s: Error: Overlap detected between particles %d and %d."\
+            " Program will exit."%(thisSript, i, j))
+      exit(1)
+      
 packingFile = 'packing.txt'
 print("\n%s: Placed %d of %d particles. Writing data to file %s."\
       %(thisScript, numPartsFinal, numPartsAttempt, packingFile))
