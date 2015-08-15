@@ -4,6 +4,10 @@ import sys
 import numpy as np
 import numpy.random as npr
 import math
+import os
+
+# Get current script name
+thisScript = os.path.basename(__file__)
 
 # ------------------------------------------------------------------------------
 # Function definitions
@@ -63,16 +67,17 @@ def uniqueRows(a):
 # default values
 gradFile = "Grading_ToyouraSand_q0.txt"
 poros = 0.4
-Lx = 2.e-3
-Ly = 2.0e-3
-Lz = 2.0e-3
+Lx = 1.e-3
+Ly = 1.0e-3
+Lz = 1.0e-3
 minDia = 1.2e-4
-volExcess = 0.10
+volExcess = 0.0
 
 # Read values from command line
 if len(sys.argv) != 6:
-  print "Usage: GenPacking.py <grading file> <porosity> <Lx> <Ly> <Lz>."
-  print "using default options."
+  print("%s: Usage: GenPacking.py <grading file> <porosity> <Lx> <Ly> <Lz>"\
+    " <min. dia.> <vol. excess>"%thisScript)
+  print("%s: Using default options."%thisScript)
 else:
   gradFile = sys.argv[1]
   poros = float(sys.argv[2])
@@ -136,8 +141,8 @@ partPos = np.zeros((len(partDia),3))
 
 volActual = (math.pi/6) * sum(partDia**3)
 
-print("%d particles generated with volume %+1.4e within %+1.4e of target volume\n" \
-      %(numPartsAttempt, volActual, abs(domainPartVol - volActual)/domainPartVol))
+print("\n%s: %d particles generated with volume %+1.4e within %+1.4e of target volume\n" \
+      %(thisScript, numPartsAttempt, volActual, abs(domainPartVol - volActual)/domainPartVol))
 
 # ------------------------------------------------------------------------------
 # Split domain into subdomains to reduce neighbour search overhead
@@ -271,8 +276,8 @@ for i in range(len(partDia)):
     # Succesful placement
     if not retry:
       partPos[i] = pos
-      print("placed particle %d at pos %f %f %f in %d attempts"\
-            %(i, pos[0], pos[1], pos[2], tries))
+      print("%s: Placed particle %d at pos %f %f %f in %d attempts"\
+            %(thisScript, i, pos[0], pos[1], pos[2], tries))
   
   if tries > maxTries:
     partPos = partPos[:i,:]
@@ -285,8 +290,8 @@ for i in range(len(partDia)):
 # ------------------------------------------------------------------------------
 numPartsFinal = len(partDia)
 packingFile = 'packing.txt'
-print("Placed %d of %d particles. Writing data to file %s."\
-      %(numPartsFinal, numPartsAttempt, packingFile))
+print("\n%s: Placed %d of %d particles. Writing data to file %s."\
+      %(thisScript, numPartsFinal, numPartsAttempt, packingFile))
 outFile = open(packingFile, 'w')
 outFile.write("NUMPARTS\n%d\n"%numPartsFinal)
 outFile.write("BOXDIMS\n%+1.15e %+1.15e %+1.15e\n"%(Lx, Ly, Lz))
