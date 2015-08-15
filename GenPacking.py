@@ -5,6 +5,9 @@ import numpy as np
 import numpy.random as npr
 import math
 
+# ------------------------------------------------------------------------------
+# Function definitions
+# ------------------------------------------------------------------------------
 # Takes the position of a particle. Returns indices of containing subdomains.
 def getCubeIndex(pos):
   cubeIndex = []
@@ -49,11 +52,14 @@ def checkPbc(pos, pbc):
     check = True
   return check
       
-def unique_rows(a):
+def uniqueRows(a):
   a = np.ascontiguousarray(a)
   unique_a = np.unique(a.view([('', a.dtype)]*a.shape[1]))
   return unique_a.view(a.dtype).reshape((unique_a.shape[0], a.shape[1]))
 
+# ------------------------------------------------------------------------------
+# Program inputs
+# ------------------------------------------------------------------------------
 # default values
 gradFile = "Grading_ToyouraSand_q0.txt"
 poros = 0.4
@@ -63,6 +69,7 @@ Lz = 2.0e-3
 minDia = 1.2e-4
 volExcess = 0.10
 
+# Read values from command line
 if len(sys.argv) != 6:
   print "Usage: GenPacking.py <grading file> <porosity> <Lx> <Ly> <Lz>."
   print "using default options."
@@ -84,7 +91,9 @@ Lx *= lengthExcess
 Ly *= lengthExcess
 Lz *= lengthExcess
 
-# Load grading data
+# ------------------------------------------------------------------------------
+# Handle PSD grading file and generate particle diameters
+# ------------------------------------------------------------------------------
 gradData = np.genfromtxt(gradFile, usecols=(0,1,2))
 gradData[:,:2] = np.divide(gradData[:,:2], 1000) # Convert mm to m
 gradData[:,2] = np.divide(gradData[:,2], 100) # Convert % to prob
@@ -129,21 +138,32 @@ volActual = (math.pi/6) * sum(partDia**3)
 print("%d particles generated with volume %+1.4e within %+1.4e of target volume\n" \
       %(len(partDia), volActual, abs(domainPartVol - volActual)/domainPartVol))
 
+# ------------------------------------------------------------------------------
 # Split domain into subdomains to reduce neighbour search overhead
-lCube = 3
-lCube2 = lCube**2
-numCubes = lCube**3
-
+# ------------------------------------------------------------------------------
+lCube = int(math.ceil((float(estNumParts)/100)**(1.0/3.0)))
+while lCube > 1:
+  Sx = Lx/lCube
+  if (Sx+partDia[0])/(2*partDia[0]) < 3:
+    lCube -= 1
+      
 # Subdomain lengths
 Sx = Lx/lCube
 Sy = Ly/lCube
 Sz = Lz/lCube
+  
+lCube2 = lCube**2
+numCubes = lCube**3
 
-tol = 1.0e-8*partDia[-1]
+tol = 1.0e-8*partDia[0]
 
 estNumPartsCube = math.floor((1.4 * estNumParts) / numCubes)
+if estNumPartsCube > estNumParts:
+  estNumPartsCube = estNumParts
 
+# Cube data structure storing boundaries of subdomains and particle lists
 class Cube:
+  # Initialise subdomain bounds and allocate memory 
   def __init__(self, index):
     self.partData = np.empty((estNumPartsCube,4))
     self.bounds = np.empty(6)
@@ -155,6 +175,7 @@ class Cube:
     self.bounds[3] = self.bounds[2] + Sy + partDia[0] + tol;
     self.bounds[5] = self.bounds[4] + Sz + partDia[0] + tol;
 
+  # Add particle to subdomain
   def addPart(self, data):
     if self.numParts == self.partData.shape[0]:
       self.partData = np.vstack((self.partData, data))
@@ -162,6 +183,7 @@ class Cube:
       self.partData[self.numParts] = data
     self.numParts += 1
 
+  # Check for overlaps between last added cube and other members of subdomain
   def checkOverlaps(self):
     if self.numParts < 2:
       return False
@@ -169,18 +191,22 @@ class Cube:
       for i in range(self.numParts-1):
         dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
         if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
-          self.numParts -= 1
           return True
       return False
 
+# Initialise subdomains
 cubeData = [Cube(i) for i in range(numCubes)]
 
+# For debug
 file = open('cube_bounds.txt','w')
 for i, cube in enumerate(cubeData):
   file.write("%d %f %f %f %f %f %f\n"%(i, cube.bounds[0], cube.bounds[1],\
     cube.bounds[2], cube.bounds[3], cube.bounds[4], cube.bounds[5]))
 file.close()
 
+# ------------------------------------------------------------------------------
+# Main placement loop
+# ------------------------------------------------------------------------------
 # All possible ghost particle translation unit vectors
 pbcPerms = []
 for i in range(2):
@@ -188,7 +214,6 @@ for i in range(2):
     for k in range(2):
       pbcPerms.append([i, j, k])
 
-# Fill domain with particles
 maxTries = 1.0e6
 placed = 0
 for i in range(len(partDia)):
@@ -200,12 +225,17 @@ for i in range(len(partDia)):
     tries += 1
     pos = genPos()            # Generate a random position.
     cubeIndex = getCubeIndex(pos)   # Determine subdomain membership.
+    tryIndex = []       # List of all cubes in which placement has been attempted
     
     # Check for overlaps with particles in containing subdomains.
-    for j in cubeIndex:
-      cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
-      retry = cubeData[j].checkOverlaps()
+    for j in range(len(cubeIndex)):
+      tryIndex.append(cubeIndex[j])
+      cubeData[cubeIndex[j]].addPart([partRad[i], pos[0], pos[1], pos[2]])
+      retry = cubeData[cubeIndex[j]].checkOverlaps()
       if retry:
+        # Remove particle from all cubes in which it has been placed
+        for k in tryIndex:
+          cubeData[k].numParts -= 1
         break
       
     # Determine if particle crosses PBCs
@@ -214,18 +244,26 @@ for i in range(len(partDia)):
       if checkPbc(pos, pbc):
         # Determine ghost translations.
         posPerms = np.zeros((8,3))
+        # Generate all possible ghost particles
         posPerms = pos + np.multiply(np.multiply(pbcPerms, pbc), [Lx, Ly, Lz])
-        posPerms = unique_rows(posPerms)
+        # Keep only unique ghost positions
+        posPerms = uniqueRows(posPerms)
+        # Remove real particle position from ghost list
         posPerms = np.delete(posPerms, np.where((posPerms == pos).all(axis=1)), axis=0) 
           
         # Check for overlaps in ghost positions
         for ghost in posPerms:
           cubeIndex = getCubeIndex(ghost)
-          for j in cubeIndex: 
-            cubeData[j].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
-            retry = cubeData[j].checkOverlaps()
-            if retry:
-              break
+          for j in range(len(cubeIndex)):
+            if cubeIndex[j] not in tryIndex:
+              tryIndex.append(cubeIndex[j]) 
+              cubeData[cubeIndex[j]].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
+              retry = cubeData[cubeIndex[j]].checkOverlaps()
+              if retry:
+                # Remove particle from all cubes in which it has been placed
+                for k in tryIndex:
+                  cubeData[k].numParts -= 1
+                break
           if retry:
             break
     
@@ -248,22 +286,9 @@ print("Placed %d of %d particles. Writing data to file %s."\
       %(totalParts, estNumParts, packingFile))
 outFile = open(packingFile, 'w')
 outFile.write("NUMPARTS\n%d\n"%totalParts)
-outFile.write("BOXDIMS\n%+1.7e %+1.7e %+1.7e\n"%(Lx, Ly, Lz))
+outFile.write("BOXDIMS\n%+1.15e %+1.15e %+1.15e\n"%(Lx, Ly, Lz))
 outFile.write("PARTDATA\n")
 for i in range(totalParts):
-  outFile.write("%+1.7e %+1.7e %+1.7e %+1.7e\n")        
+  outFile.write("%+1.15e %+1.15e %+1.15e %+1.15e\n"\
+                %(partRad[i], partPos[i,0], partPos[i,1], partPos[i,2]))        
 outFile.close()
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
