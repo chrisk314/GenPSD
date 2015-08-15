@@ -279,7 +279,9 @@ for i in range(len(partDia)):
     partRad = partRad[:i,:]
     break
   
+# ------------------------------------------------------------------------------
 # Output data to file
+# ------------------------------------------------------------------------------
 totalParts = len(partDia)
 packingFile = 'packing.txt'
 print("Placed %d of %d particles. Writing data to file %s."\
