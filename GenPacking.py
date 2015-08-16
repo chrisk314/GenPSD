@@ -190,13 +190,13 @@ class Cube:
     self.numParts += 1
 
   # Check for overlaps between last added cube and other members of subdomain
-  def checkOverlaps(self):
-    if self.numParts < 2:
+  def checkOverlaps(self, data):
+    if self.numParts < 1:
       return False
     else:
-      for i in range(self.numParts-1):
-        dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
-        if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
+      for i in range(self.numParts):
+        dist = sum((self.partData[i,1:] - data[1:])**2)
+        if dist - (self.partData[i,0] + data[0] + tol)**2 < 0.0:
           return True
       return False
 
@@ -230,51 +230,44 @@ for i in range(len(partDia)):
   while retry and tries < maxTries:
     tries += 1
     pos = genPos()            # Generate a random position.
-    cubeIndex = getCubeIndex(pos)   # Determine subdomain membership.
-    tryIndex = []       # List of all cubes in which placement has been attempted
+    cubeIndex = []
+    cubeIndex.append(getCubeIndex(pos))   # Determine subdomain membership.
     
     # Check for overlaps with particles in containing subdomains.
-    for j in range(len(cubeIndex)):
-      tryIndex.append(cubeIndex[j])
-      cubeData[cubeIndex[j]].addPart([partRad[i], pos[0], pos[1], pos[2]])
-      retry = cubeData[cubeIndex[j]].checkOverlaps()
+    for j in cubeIndex[-1]:
+      retry = cubeData[j].checkOverlaps([partRad[i], pos[0], pos[1], pos[2]])
       if retry:
-        # Remove particle from all cubes in which it has been placed
-        for k in tryIndex:
-          cubeData[k].numParts -= 1
         break
       
     # Determine if particle crosses PBCs
     if not retry:
       pbc = np.zeros(3)
       if checkPbc(pos, pbc):
-        # Determine ghost translations.
-        posPerms = np.zeros((8,3))
         # Generate all possible ghost particles
+        posPerms = np.empty((8,3))
         posPerms = pos + np.multiply(np.multiply(pbcPerms, pbc), [Lx, Ly, Lz])
-        # Keep only unique ghost positions
+        # Keep only unique positions and remove real particle from ghost list
         posPerms = uniqueRows(posPerms)
-        # Remove real particle position from ghost list
         posPerms = np.delete(posPerms, np.where((posPerms == pos).all(axis=1)), axis=0) 
           
         # Check for overlaps in ghost positions
         for ghost in posPerms:
-          cubeIndex = getCubeIndex(ghost)
-          for j in range(len(cubeIndex)):
-            if cubeIndex[j] not in tryIndex:
-              tryIndex.append(cubeIndex[j]) 
-              cubeData[cubeIndex[j]].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
-              retry = cubeData[cubeIndex[j]].checkOverlaps()
-              if retry:
-                # Remove particle from all cubes in which it has been placed
-                for k in tryIndex:
-                  cubeData[k].numParts -= 1
-                break
+          cubeIndex.append(getCubeIndex(ghost))
+          for j in cubeIndex[-1]:
+            retry = cubeData[j].checkOverlaps([partRad[i], ghost[0], ghost[1], ghost[2]])
+            if retry:
+              break
           if retry:
             break
     
     # Succesful placement
     if not retry:
+      for j in cubeIndex[0]:
+        cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
+      if len(cubeIndex) > 1:
+        for j, ghost in enumerate(posPerms):
+          for k in cubeIndex[j+1]:
+            cubeData[k].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
       partPos[i] = pos
       print("%s: Placed particle %d at %f %f %f in %d attempts"\
             %(thisScript, i, pos[0], pos[1], pos[2], tries))
