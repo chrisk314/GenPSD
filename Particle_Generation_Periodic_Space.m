@@ -2,7 +2,7 @@
 % within a designated area to approximate that PSD.
 clear;
 clc;
-tic;
+%tic;
 
 %========================================
 % USER INPUT DATA (IN SI UNITS)
@@ -14,9 +14,9 @@ ball_density = 2650; % kg/m3
 % x/y/z is the length/width/height of the box which no longer needs to be a
 % perfect cube. As a general guideline, each box dimension should be >
 % 10*{diameter of the largest particle}.
-x = 1.5/1000; % m
-y = 1.5/1000; % m
-z = 1.5/1000; % m
+x = 1.0/1000; % m
+y = 1.0/1000; % m
+z = 1.0/1000; % m
 
 % A text file is required containing the PSD by NUMBER (Q0) for the grading
 % of interest. This file has 3 columns: lower class limit, upper class
@@ -24,13 +24,13 @@ z = 1.5/1000; % m
 psd_filename = 'Grading_ToyouraSand_q0.txt'; % Currently limits are in mm in this file
 
 % Optionally modify the PSD to disregard particles below some minimum size.
-min_size = 0.00005; % m
+min_size = 0.00012; % m
 
 % The void ratio for the sample. This controls the number of particles
 % which will be placed inside the cell. The smaller the void ratio, the
 % longer the script requires to run. Using a void ratio of around 1 is
 % usually fairly quick.
-void_ratio = 1.0; % Volume of voids / volume of solids
+void_ratio = 0.666; % Volume of voids / volume of solids
 
 %========================================
 
@@ -163,7 +163,7 @@ tol = 0.00000001*data(j,1);
 % for each subvolume.
 
 % Divide into 216 (6^3) smaller cuboids.
-lcube = 6;
+lcube = 1;
 ncubes = lcube^3;
 
 % The structure will contain the diameter of the particles and the
@@ -205,6 +205,7 @@ for n = 1:j
     placed = 0;
     tries = 0; % The number of attempts made at placing an atom
     
+    tic
     while (placed == 0) && (tries < maxtries)
         coord = celldims.*rand(3,1); % Randomly select a particle position
         
@@ -403,7 +404,9 @@ for n = 1:j
         end
     end
     
+    toc
     fprintf(1,'Placed particle %i of %i in %i attempts.\n',n,j,tries); % To keep an eye on progress
+    fprintf(1, 'wall time: %f %f',toc, toc/tries);
 end
 
 if (tries == maxtries) && (placed == 0)
@@ -450,5 +453,5 @@ end
 fclose(fid);
 fprintf(1,'Finished writing data!\n\n');
 
-toc;
+%toc;
 return

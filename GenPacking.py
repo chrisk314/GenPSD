@@ -5,6 +5,7 @@ import numpy as np
 import numpy.random as npr
 import math
 import os
+import time
 
 # Get current script name
 thisScript = os.path.basename(__file__)
@@ -226,6 +227,10 @@ for i in range(len(partDia)):
   tries = 0
   retry = True
   
+  # DEBUG
+  tStartClock = time.clock()
+  tStartWall = time.time()
+  
   # Attempt to place particle. Loop until success.
   while retry and tries < maxTries:
     tries += 1
@@ -269,14 +274,19 @@ for i in range(len(partDia)):
           for k in cubeIndex[j+1]:
             cubeData[k].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
       partPos[i] = pos
+      # DEBUG
+      tEndClock = time.clock()
+      tEndWall = time.time()
+      timeTotalClock = tEndClock - tStartClock
+      timeTotalWall = tEndWall - tStartWall
+      timePerIterClock = (timeTotalClock)/tries 
+      timePerIterWall = (timeTotalWall)/tries 
       print("%s: Placed particle %d at %f %f %f in %d attempts"\
             %(thisScript, i, pos[0], pos[1], pos[2], tries))
+      print "clock time: %f %f"%(timeTotalClock,timePerIterClock)
+      print "wall time: %f %f"%(timeTotalWall,timePerIterWall)
+      break
   
-  if tries > maxTries:
-    partPos = partPos[:i,:]
-    partDia = partDia[:i,:]
-    partRad = partRad[:i,:]
-    break
   
 # ------------------------------------------------------------------------------
 # Check for errors and output data to file
