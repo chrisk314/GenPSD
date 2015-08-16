@@ -5,6 +5,7 @@ import numpy as np
 import numpy.random as npr
 import math
 import os
+import time
 
 # Get current script name
 thisScript = os.path.basename(__file__)
@@ -137,7 +138,7 @@ partDia.sort()
 partDia.reverse()
 partDia = np.array(partDia)
 partRad = 0.5*partDia
-partPos = np.zeros((len(partDia),3))
+partPos = np.zeros((numPartsAttempt,3))
 
 volActual = (math.pi/6) * sum(partDia**3)
 
@@ -194,9 +195,41 @@ class Cube:
     if self.numParts < 2:
       return False
     else:
+      '''
       for i in range(self.numParts-1):
         dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
         if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
+          return True
+      '''
+      dist = np.sum((self.partData[:self.numParts-1,1:] - \
+                     self.partData[self.numParts-1,1:])**2, axis=1)
+      if np.min(dist - (self.partData[:self.numParts-1,0] + \
+                        self.partData[self.numParts-1,0] + tol)**2) < 0.0:
+        return True
+      return False
+    
+  def checkOverlapsAlt(self):
+    if self.numParts < 2:
+      return False
+    else:
+      '''
+      for i in range(self.numParts-1):
+        dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
+        if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
+          return True
+      '''
+      dist = np.sum((self.partData[:self.numParts-1,1:] - \
+                     self.partData[self.numParts-1,1:])**2, axis=1)
+      if np.min(dist - (self.partData[:self.numParts-1,0] + \
+                        self.partData[self.numParts-1,0] + tol)**2) < 0.0:
+        overlaps = np.abs(dist - (self.partData[:self.numParts-1,0] + \
+                        self.partData[self.numParts-1,0] + tol)**2)
+        testRads = np.empty((self.numParts-1,2))
+        testRads[:,0] = self.partData[:self.numParts-1,0]**2
+        testRads[:,1] = self.partData[self.numParts-1,0]**2
+        minRads = np.min(testRads, axis=1)
+        overlapRatio = np.divide(minRads, overlaps)
+        if np.any(np.greater(overlapRatio, 2.0)):
           return True
       return False
 
@@ -210,9 +243,6 @@ for i, cube in enumerate(cubeData):
     cube.bounds[2], cube.bounds[3], cube.bounds[4], cube.bounds[5]))
 file.close()
 
-# ------------------------------------------------------------------------------
-# Main placement loop
-# ------------------------------------------------------------------------------
 # All possible ghost particle translation unit vectors
 pbcPerms = []
 for i in range(2):
@@ -220,11 +250,20 @@ for i in range(2):
     for k in range(2):
       pbcPerms.append([i, j, k])
 
+posPerms = np.empty((8,3))
 maxTries = 1.0e6
-placed = 0
-for i in range(len(partDia)):
+numPlaced = 0
+
+# ------------------------------------------------------------------------------
+# Main placement loop
+# ------------------------------------------------------------------------------
+for i in range(numPartsAttempt):
   tries = 0
   retry = True
+  
+  # DEBUG
+  tStartClock = time.clock()
+  tStartWall = time.time()
   
   # Attempt to place particle. Loop until success.
   while retry and tries < maxTries:
@@ -234,10 +273,10 @@ for i in range(len(partDia)):
     tryIndex = []       # List of all cubes in which placement has been attempted
     
     # Check for overlaps with particles in containing subdomains.
-    for j in range(len(cubeIndex)):
-      tryIndex.append(cubeIndex[j])
-      cubeData[cubeIndex[j]].addPart([partRad[i], pos[0], pos[1], pos[2]])
-      retry = cubeData[cubeIndex[j]].checkOverlaps()
+    for j in cubeIndex:
+      tryIndex.append(j)
+      cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
+      retry = cubeData[j].checkOverlapsAlt()
       if retry:
         # Remove particle from all cubes in which it has been placed
         for k in tryIndex:
@@ -248,55 +287,59 @@ for i in range(len(partDia)):
     if not retry:
       pbc = np.zeros(3)
       if checkPbc(pos, pbc):
-        # Determine ghost translations.
-        posPerms = np.zeros((8,3))
-        # Generate all possible ghost particles
+        # Determine ghost translations and generate all possible ghost particles.
         posPerms = pos + np.multiply(np.multiply(pbcPerms, pbc), [Lx, Ly, Lz])
-        # Keep only unique ghost positions
+        # Keep only unique ghost positions and remove real particle from ghost list.
         posPerms = uniqueRows(posPerms)
-        # Remove real particle position from ghost list
         posPerms = np.delete(posPerms, np.where((posPerms == pos).all(axis=1)), axis=0) 
           
         # Check for overlaps in ghost positions
         for ghost in posPerms:
           cubeIndex = getCubeIndex(ghost)
-          for j in range(len(cubeIndex)):
-            if cubeIndex[j] not in tryIndex:
-              tryIndex.append(cubeIndex[j]) 
-              cubeData[cubeIndex[j]].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
-              retry = cubeData[cubeIndex[j]].checkOverlaps()
-              if retry:
-                # Remove particle from all cubes in which it has been placed
-                for k in tryIndex:
-                  cubeData[k].numParts -= 1
-                break
+          for j in cubeIndex:
+            tryIndex.append(j) 
+            cubeData[j].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
+            retry = cubeData[j].checkOverlapsAlt()
+            if retry:
+              # Remove particle from all cubes in which it has been placed
+              for k in tryIndex:
+                cubeData[k].numParts -= 1
+              break
           if retry:
             break
     
     # Succesful placement
     if not retry:
-      partPos[i] = pos
+      partPos[numPlaced] = pos
+      numPlaced += 1
+      # DEBUG
+      tEndClock = time.clock()
+      tEndWall = time.time()
+      timeTotalClock = tEndClock - tStartClock
+      timeTotalWall = tEndWall - tStartWall
+      timePerIterClock = (timeTotalClock)/tries 
+      timePerIterWall = (timeTotalWall)/tries 
       print("%s: Placed particle %d at %f %f %f in %d attempts"\
             %(thisScript, i, pos[0], pos[1], pos[2], tries))
+      print "clock time: %f %f"%(timeTotalClock,timePerIterClock)
+      print "wall time: %f %f"%(timeTotalWall,timePerIterWall)
+      break
   
-  if tries > maxTries:
-    partPos = partPos[:i,:]
-    partDia = partDia[:i,:]
-    partRad = partRad[:i,:]
-    break
+  if tries >= maxTries:
+    print("%s: Bailed out on particle %d after %d tries"%(thisScript, i, tries))
+  
   
 # ------------------------------------------------------------------------------
 # Check for errors and output data to file
 # ------------------------------------------------------------------------------
-numPartsFinal = len(partDia)
 # DEBUG
-for i in range(numPartsFinal):
+for i in range(numPlaced):
   if ((partPos[i,0] < -tol or partPos[i,0] > Lx+tol) or\
       (partPos[i,1] < -tol or partPos[i,1] > Ly+tol) or\
       (partPos[i,2] < -tol or partPos[i,2] > Lz+tol)):
     print("%s: Error: Particle %d out of bounds. Program will exit."%(thisScript, i))
     exit(1)
-  for j in range(numPartsFinal, i):
+  for j in range(numPlaced, i):
     dist = sum((partPos[i,1:] - partPos[j,1:])**2)
     if dist - (partRad[i] + partRad[j] + tol)**2 < 0.0:
       print("%s: Error: Overlap detected between particles %d and %d."\
@@ -305,12 +348,12 @@ for i in range(numPartsFinal):
       
 packingFile = 'packing.txt'
 print("\n%s: Placed %d of %d particles. Writing data to file %s."\
-      %(thisScript, numPartsFinal, numPartsAttempt, packingFile))
+      %(thisScript, numPlaced, numPartsAttempt, packingFile))
 outFile = open(packingFile, 'w')
-outFile.write("NUMPARTS\n%d\n"%numPartsFinal)
+outFile.write("NUMPARTS\n%d\n"%numPlaced)
 outFile.write("BOXDIMS\n%+1.15e %+1.15e %+1.15e\n"%(Lx, Ly, Lz))
 outFile.write("PARTDATA\n")
-for i in range(numPartsFinal):
+for i in range(numPlaced):
   outFile.write("%+1.15e %+1.15e %+1.15e %+1.15e\n"\
                 %(partRad[i], partPos[i,0], partPos[i,1], partPos[i,2]))        
 outFile.close()
