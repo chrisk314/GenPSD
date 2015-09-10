@@ -68,7 +68,7 @@ def uniqueRows(a):
 # default values
 gradFile = "Grading_ToyouraSand_q0.txt"
 poros = 0.4
-Lx = 1.e-3
+Lx = 1.0e-3
 Ly = 1.0e-3
 Lz = 1.0e-3
 minDia = 1.2e-4
@@ -276,7 +276,7 @@ for i in range(numPartsAttempt):
     for j in cubeIndex:
       tryIndex.append(j)
       cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
-      retry = cubeData[j].checkOverlapsAlt()
+      retry = cubeData[j].checkOverlaps()
       if retry:
         # Remove particle from all cubes in which it has been placed
         for k in tryIndex:
@@ -299,7 +299,7 @@ for i in range(numPartsAttempt):
           for j in cubeIndex:
             tryIndex.append(j) 
             cubeData[j].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
-            retry = cubeData[j].checkOverlapsAlt()
+            retry = cubeData[j].checkOverlaps()
             if retry:
               # Remove particle from all cubes in which it has been placed
               for k in tryIndex:
