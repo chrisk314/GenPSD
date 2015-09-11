@@ -345,7 +345,11 @@ for i in range(numPlaced):
       print("%s: Error: Overlap detected between particles %d and %d."\
             " Program will exit."%(thisSript, i, j))
       exit(1)
-      
+
+partRad = partRad[:numPlaced]
+partDia = partDia[:numPlaced]
+partPos = partPos[:numPlaced,:]
+
 packingFile = 'packing.txt'
 print("\n%s: Placed %d of %d particles. Writing data to file %s."\
       %(thisScript, numPlaced, numPartsAttempt, packingFile))
@@ -357,3 +361,77 @@ for i in range(numPlaced):
   outFile.write("%+1.15e %+1.15e %+1.15e %+1.15e\n"\
                 %(partRad[i], partPos[i,0], partPos[i,1], partPos[i,2]))        
 outFile.close()
+
+# Output data in .vtp format readable by ParaView
+packingFile = 'packing.vtp'
+outFile = open(packingFile, 'w')
+outFile.write("<?xml version=\"1.0\"?>\n<VTKFile type=\"PolyData\" version=\"0.1\" format=\"ascii\">\n")
+outFile.write("<PolyData>\n\t<Piece NumberOfPoints=\"%d\">\n\t\t<Points>\n\t\t\t"%(numPlaced))
+outFile.write("<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\n")
+for i in range(numPlaced):
+  outFile.write("\t\t\t\t%f %f %f\n"%(partPos[i,0], partPos[i,1], partPos[i,2]))
+outFile.write("\t\t\t</DataArray>\n\t\t</Points>\n")
+outFile.write("\t\t<PointData Scalars=\"Diameter\">\n\t\t\t<DataArray type=\"Float32\" Name=\"Diameter\" format=\"ascii\">\n")
+for i in range(numPlaced):
+  outFile.write("\t\t\t\t%f\n"%(2*partRad[i]))
+outFile.write("\t\t\t\t</DataArray>\n")
+outFile.write("\t\t\t<DataArray type=\"Int32\" Name=\"ID\" format=\"ascii\" NumberOfComponents=\"1\">\n")
+for i in range(numPlaced):
+  outFile.write("\t\t\t\t%d\n"%(i))
+outFile.write("\t\t\t\t</DataArray>\n")
+outFile.write("\t\t\t</PointData>\n\t\t</Piece>\n\t</PolyData>\n</VTKFile>")
+outFile.close()
+
+# Output data in format of MF-Unstructured AddHole command
+packingFile = 'packing.mf.addhole'
+outFile = open(packingFile, 'w')
+
+outerBounds = np.zeros((3,2))
+for i in range(numPlaced):
+    if partPos[i,0] + partRad[i] > outerBounds[0,1]:
+        outerBounds[0,1] = partPos[i,0] + partRad[i]
+    if partPos[i,0] - partRad[i] < outerBounds[0,0]:
+        outerBounds[0,0] = partPos[i,0] - partRad[i]
+
+    if partPos[i,1] + partRad[i] > outerBounds[1,1]:
+        outerBounds[1,1] = partPos[i,1] + partRad[i]
+    if partPos[i,1] - partRad[i] < outerBounds[1,0]:
+        outerBounds[1,0] = partPos[i,1] - partRad[i]
+
+    if partPos[i,2] + partRad[i] > outerBounds[2,1]:
+        outerBounds[2,1] = partPos[i,2] + partRad[i]
+    if partPos[i,2] - partRad[i] < outerBounds[2,0]:
+        outerBounds[2,0] = partPos[i,2] - partRad[i]
+
+outFile.write("\tAutoMesh TET %f %f %f %f %f %f\n\n"\
+        %(tetMaxVol, tetMinAng, maxRadEdge, outerBounds[0,1]-outerBounds[0,0],\
+         outerBounds[1,1]-outerBounds[1,0],  outerBounds[2,1]-outerBounds[2,0]))
+
+# Determine refinement classes
+refineMax = 3
+Amax = math.pi * partRad[0]**2
+Amin = math.pi * partRad[-1]**2
+AmaxElem = Amax / (20 * 4**(refineMax - 1))
+minDelta = 1.0E30
+
+for k in range(refineMax,0,-1):
+    AminElem = Amin / (20 * 4**(k - 1))
+    if abs(AmaxElem - AminElem) < minDelta:
+        minDelta = abs(AmaxElem - AminElem)
+        refineMin = k
+
+radClasses = [partRad[-1]]
+if refineMin != refineMax:
+    refineDelta = refineMax - refineMin
+    radRange = partRad[0] - partRad[-1]
+    radClassWidth = radRange/(refineDelta+1)
+    for i in range(refineDelta+1):
+        radClasses.push(partRad[-1]+(i+1)*radClassWidth)
+        
+for i in range(numPlaced):
+    for j in range(len(radClasses)-1):
+        if partRad[i] > radClasses[j] and partRad[i] < radClasses[j+1]:
+            refine = refineMin + j
+    outFile.write("\tAddHole %+1.7e %+1.7e %+1.7e %+1.7e 1.0 1.0 1.0 0.0 0.0 0.0 %d\n"\
+                 %(partPos[i,0], partPos[i,1], partPos[i,2], partRad[i], refine))
+outFile.close() 
