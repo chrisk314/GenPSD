@@ -68,9 +68,9 @@ def uniqueRows(a):
 # default values
 gradFile = "Grading_ToyouraSand_q0.txt"
 poros = 0.4
-Lx = 1.0e-3
-Ly = 1.0e-3
-Lz = 1.0e-3
+Lx = 0.5e-3
+Ly = 0.5e-3
+Lz = 0.5e-3
 minDia = 1.2e-4
 volExcess = 0.0
 
@@ -189,6 +189,21 @@ class Cube:
     else:
       self.partData[self.numParts] = data
     self.numParts += 1
+
+  # Write overlaps
+  def writeOverlaps(self):
+      dist = np.sum((self.partData[:self.numParts-1,1:] - \
+                     self.partData[self.numParts-1,1:])**2, axis=1)
+      print self.numParts
+      for i in range(self.numParts):
+        for j in range(i):
+          dist = sum((self.partData[i,1:] - self.partData[j,1:])**2)
+          if dist - (self.partData[i,0] + self.partData[j,0] + tol)**2 < 0.0:
+            print("%s: Error: Overlap detected between particles %d and %d."\
+                  " Program will exit."%(thisScript, i, j))
+            #print partPos[i,:] - partPos[j,:]
+            #print dist**0.5
+            print dist**0.5 - (self.partData[i,0] + self.partData[j,0])
 
   # Check for overlaps between last added cube and other members of subdomain
   def checkOverlaps(self):
@@ -321,8 +336,20 @@ for i in range(numPartsAttempt):
       timePerIterWall = (timeTotalWall)/tries 
       print("%s: Placed particle %d at %f %f %f in %d attempts"\
             %(thisScript, i, pos[0], pos[1], pos[2], tries))
-      print "clock time: %f %f"%(timeTotalClock,timePerIterClock)
-      print "wall time: %f %f"%(timeTotalWall,timePerIterWall)
+      #print "clock time: %f %f"%(timeTotalClock,timePerIterClock)
+      #print "wall time: %f %f"%(timeTotalWall,timePerIterWall)
+      realIndex = getCubeIndex(pos)
+      print "real"
+      for l in realIndex:
+        print("cube %d"%l)
+        cubeData[l].writeOverlaps()
+      print "ghost"
+      for ghost in posPerms:
+        cubeIndex = getCubeIndex(ghost)
+        for l in cubeIndex:
+          print("cube %d"%l)
+          cubeData[l].writeOverlaps()
+
       break
   
   if tries >= maxTries:
@@ -333,18 +360,25 @@ for i in range(numPartsAttempt):
 # Check for errors and output data to file
 # ------------------------------------------------------------------------------
 # DEBUG
+
+print cubeData[0].partData[:,1:]
+print partPos
+
 for i in range(numPlaced):
   if ((partPos[i,0] < -tol or partPos[i,0] > Lx+tol) or\
       (partPos[i,1] < -tol or partPos[i,1] > Ly+tol) or\
       (partPos[i,2] < -tol or partPos[i,2] > Lz+tol)):
     print("%s: Error: Particle %d out of bounds. Program will exit."%(thisScript, i))
-    exit(1)
-  for j in range(numPlaced, i):
-    dist = sum((partPos[i,1:] - partPos[j,1:])**2)
+    #exit(1)
+  for j in range(i):
+    dist = sum((partPos[i,:] - partPos[j,:])**2)
     if dist - (partRad[i] + partRad[j] + tol)**2 < 0.0:
       print("%s: Error: Overlap detected between particles %d and %d."\
-            " Program will exit."%(thisSript, i, j))
-      exit(1)
+            " Program will exit."%(thisScript, i, j))
+      print partPos[i,:] - partPos[j,:]
+      print dist**0.5
+      print dist**0.5 - (partRad[i] + partRad[j])
+      #exit(1)
 
 partRad = partRad[:numPlaced]
 partDia = partDia[:numPlaced]
@@ -386,6 +420,14 @@ outFile.close()
 packingFile = 'packing.mf.addhole'
 outFile = open(packingFile, 'w')
 
+domainBigger = 1.0e-09
+tetMaxVol = domainBigger / 1.0e+05
+tetMinAng = 15.0
+tetRadEdge = 2.0
+ScaleGeo = 1000.0
+
+tol = 0.01 * partRad[-1]
+
 outerBounds = np.zeros((3,2))
 for i in range(numPlaced):
     if partPos[i,0] + partRad[i] > outerBounds[0,1]:
@@ -397,15 +439,21 @@ for i in range(numPlaced):
         outerBounds[1,1] = partPos[i,1] + partRad[i]
     if partPos[i,1] - partRad[i] < outerBounds[1,0]:
         outerBounds[1,0] = partPos[i,1] - partRad[i]
-
+        
     if partPos[i,2] + partRad[i] > outerBounds[2,1]:
         outerBounds[2,1] = partPos[i,2] + partRad[i]
     if partPos[i,2] - partRad[i] < outerBounds[2,0]:
         outerBounds[2,0] = partPos[i,2] - partRad[i]
 
-outFile.write("\tAutoMesh TET %f %f %f %f %f %f\n\n"\
-        %(tetMaxVol, tetMinAng, maxRadEdge, outerBounds[0,1]-outerBounds[0,0],\
-         outerBounds[1,1]-outerBounds[1,0],  outerBounds[2,1]-outerBounds[2,0]))
+# Give some space at edges of domain
+outerBounds[:,0] = outerBounds[:,0] - partRad[0]
+outerBounds[:,1] = outerBounds[:,1] + partRad[0]
+
+outFile.write("\tAutoMesh TET %+1.7e %f %f %+1.7e %+1.7e %+1.7e\n\n"\
+        %(tetMaxVol * ScaleGeo**3, tetMinAng, tetRadEdge,\
+        (outerBounds[0,1]-outerBounds[0,0] + 2*tol) * ScaleGeo,\
+        (outerBounds[1,1]-outerBounds[1,0] + 2*tol) * ScaleGeo,\
+        (outerBounds[2,1]-outerBounds[2,0] + 2*tol) * ScaleGeo))
 
 # Determine refinement classes
 refineMax = 3
@@ -414,6 +462,7 @@ Amin = math.pi * partRad[-1]**2
 AmaxElem = Amax / (20 * 4**(refineMax - 1))
 minDelta = 1.0E30
 
+refineMin = refineMax
 for k in range(refineMax,0,-1):
     AminElem = Amin / (20 * 4**(k - 1))
     if abs(AmaxElem - AminElem) < minDelta:
@@ -423,15 +472,30 @@ for k in range(refineMax,0,-1):
 radClasses = [partRad[-1]]
 if refineMin != refineMax:
     refineDelta = refineMax - refineMin
-    radRange = partRad[0] - partRad[-1]
-    radClassWidth = radRange/(refineDelta+1)
-    for i in range(refineDelta+1):
-        radClasses.push(partRad[-1]+(i+1)*radClassWidth)
-        
+    bounds = 0
+    for i in range(numPlaced-1, 0, -1):
+        AElem0 = (math.pi * partRad[i]**2) / (20 * 4**(refineMin + bounds - 1))
+        AElem1 = (math.pi * partRad[i]**2) / (20 * 4**(refineMin + bounds))
+        if abs(AmaxElem - AElem0) > abs(AmaxElem - AElem1):
+            radClasses.append(partRad[i])
+            bounds += 1
+        if bounds == refineDelta:
+            radClasses.append(partRad[0])
+            break
+
+# Translate positions to place corner of cell at origin
+AddHolePos = np.empty(partPos.shape)
+AddHolePos[:,0] = ScaleGeo * (partPos[:,0] + abs(outerBounds[0,0]) + tol)
+AddHolePos[:,1] = ScaleGeo * (partPos[:,1] + abs(outerBounds[1,0]) + tol)
+AddHolePos[:,2] = ScaleGeo * (partPos[:,2] + abs(outerBounds[2,0]) + tol)
+AddHoleRad = ScaleGeo * partRad
+
+refine = refineMax
 for i in range(numPlaced):
     for j in range(len(radClasses)-1):
         if partRad[i] > radClasses[j] and partRad[i] < radClasses[j+1]:
             refine = refineMin + j
     outFile.write("\tAddHole %+1.7e %+1.7e %+1.7e %+1.7e 1.0 1.0 1.0 0.0 0.0 0.0 %d\n"\
-                 %(partPos[i,0], partPos[i,1], partPos[i,2], partRad[i], refine))
+                 %(AddHolePos[i,0], AddHolePos[i,1], AddHolePos[i,2], AddHoleRad[i], refine))
+outFile.write("\n\tScaleGeometryFactor %+1.7e\n" %(ScaleGeo))
 outFile.close() 
