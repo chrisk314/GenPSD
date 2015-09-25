@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-# Get current script name
+# Get current script name.
 thisScript = os.path.basename(__file__)
 
 # ------------------------------------------------------------------------------
@@ -30,11 +30,11 @@ def getCubeIndex(pos):
       cubeIndex.append(i)
   return cubeIndex
 
-# Generate random position
+# Generate random position.
 def genPos():
   return [npr.rand() * Lx, npr.rand() * Ly, npr.rand() * Lz] 
 
-# Check if particle crosses periodic boundaries
+# Check if particle crosses periodic boundaries.
 def checkPbc(pos, pbc):
   check = False
   if pos[0] < partRad[0]:
@@ -65,19 +65,20 @@ def uniqueRows(a):
 # ------------------------------------------------------------------------------
 # Program inputs
 # ------------------------------------------------------------------------------
-# default values
+# default values.
 gradFile = "Grading_ToyouraSand_q0.txt"
 poros = 0.4
-Lx = 0.75e-3
-Ly = 0.75e-3
-Lz = 0.75e-3
+Lx = 0.5e-3
+Ly = 0.5e-3
+Lz = 0.5e-3
 minDia = 1.2e-4
-volExcess = 0.0
+volExcess = 0.1
+overlapTol = 1.0e-6
 
-# Read values from command line
-if len(sys.argv) != 6:
+# Read values from command line.
+if len(sys.argv) != 9:
   print("%s: Usage: GenPacking.py <grading file> <porosity> <Lx> <Ly> <Lz>"\
-    " <min. dia.> <vol. excess>"%thisScript)
+    " <min. dia.> <vol. excess> <overlap tol.>"%thisScript)
   print("%s: Using default options."%thisScript)
 else:
   gradFile = sys.argv[1]
@@ -87,10 +88,11 @@ else:
   Lz = float(sys.argv[5])
   minDia = float(sys.argv[6])
   volExcess = float(sys.argv[7])
-  
+  overlapTol = float(sys.argv[8])  
+
 domainVol = Lx * Ly * Lz
 domainPartVol = domainVol * (1 - poros)
-# Give some extra space for the particles
+# Give some extra space for the particles.
 domainBigger = domainVol * (1.0 + volExcess)
 lengthExcess = (1.0 + volExcess)**(1.0/3.0)
 Lx *= lengthExcess
@@ -101,10 +103,10 @@ Lz *= lengthExcess
 # Handle PSD grading file and generate particle diameters
 # ------------------------------------------------------------------------------
 gradData = np.genfromtxt(gradFile, usecols=(0,1,2))
-gradData[:,:2] = np.divide(gradData[:,:2], 1000) # Convert mm to m
-gradData[:,2] = np.divide(gradData[:,2], 100) # Convert % to prob
+gradData[:,:2] = np.divide(gradData[:,:2], 1000) # Convert mm to m.
+gradData[:,2] = np.divide(gradData[:,2], 100) # Convert % to prob.
 
-# Eliminate small particle classes
+# Eliminate small particle classes.
 for gradClass in gradData:
   if gradClass[1] < minDia:
     gradClass[2] = 0.0
@@ -112,13 +114,13 @@ for gradClass in gradData:
     gradClass[2] *= (gradClass[1] - minDia) / (gradClass[1] - gradClass[0])
     gradClass[0] = minDia
 
-meanDia = 0.5 * (gradData[:,0] + gradData[:,1])         # Class mean particle diameters
-classPartVol = (math.pi/6) * meanDia[:]**3 * gradData[:,2]  # Class mean particle volumes
-meanPartVol = sum(classPartVol)                   # Global mean particle volume
-numPartsEst = domainPartVol / meanPartVol             # Estimated number of particles
-classVol = numPartsEst * classPartVol               # Class volumes
+meanDia = 0.5 * (gradData[:,0] + gradData[:,1])             # Class mean particle diameters.
+classPartVol = (math.pi/6) * meanDia[:]**3 * gradData[:,2]  # Class mean particle volumes.
+meanPartVol = sum(classPartVol)                             # Global mean particle volume.
+numPartsEst = domainPartVol / meanPartVol                   # Estimated number of particles.
+classVol = numPartsEst * classPartVol                       # Class volumes.
 
-# Generate particle diameters
+# Generate particle diameters.
 partDia = []
 overflowVol = 0.0
 for i in reversed(range(len(gradData))):
@@ -132,7 +134,7 @@ for i in reversed(range(len(gradData))):
         partDia.pop()
         overflowVol += classVol[i] - (accumVol - addVol)
 
-# Sort diameters from largest to smallest
+# Sort diameters from largest to smallest.
 numPartsAttempt = len(partDia)
 partDia.sort()
 partDia.reverse()
@@ -154,7 +156,7 @@ while lCube > 1:
   if (Sx+partDia[0])/(2*partDia[0]) < 3:
     lCube -= 1
       
-# Subdomain lengths
+# Subdomain lengths.
 Sx = Lx/lCube
 Sy = Ly/lCube
 Sz = Lz/lCube
@@ -168,13 +170,17 @@ numPartsCubeEst = math.floor((1.4 * numPartsAttempt) / numCubes)
 if numPartsCubeEst > numPartsAttempt:
   numPartsCubeEst = numPartsAttempt
 
-# Cube data structure storing boundaries of subdomains and particle lists
+# Cube data structure storing boundaries of subdomains and particle lists.
 class Cube:
-  # Initialise subdomain bounds and allocate memory 
+  # Initialise subdomain bounds and allocate memory.
   def __init__(self, index):
     self.partData = np.empty((numPartsCubeEst,4))
     self.bounds = np.empty(6)
     self.numParts = 0
+    # Allow extra space or some overlap between particles by specifying
+    # a positive or negative value of overlapTol respectively.
+    self.overlapTol = overlapTol
+    # Specify cube boundaries.
     self.bounds[0] = (index % lCube) * Sx - (partRad[0] + tol);
     self.bounds[2] = (math.floor(index/lCube) % lCube) * Sy - (partRad[0] + tol);
     self.bounds[4] = (math.floor(index/lCube2)) * Sz - (partRad[0] + tol);
@@ -182,7 +188,7 @@ class Cube:
     self.bounds[3] = self.bounds[2] + Sy + partDia[0] + tol;
     self.bounds[5] = self.bounds[4] + Sz + partDia[0] + tol;
 
-  # Add particle to subdomain
+  # Add particle to subdomain.
   def addPart(self, data):
     if self.numParts == self.partData.shape[0]:
       self.partData = np.vstack((self.partData, data))
@@ -190,21 +196,15 @@ class Cube:
       self.partData[self.numParts] = data
     self.numParts += 1
 
-  # Check for overlaps between last added cube and other members of subdomain
+  # Check for overlaps between last added cube and other members of subdomain.
   def checkOverlaps(self):
     if self.numParts < 2:
       return False
     else:
-      '''
-      for i in range(self.numParts-1):
-        dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
-        if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
-          return True
-      '''
       dist = np.sum((self.partData[:self.numParts-1,1:] - \
                      self.partData[self.numParts-1,1:])**2, axis=1)
       if np.min(dist - (self.partData[:self.numParts-1,0] + \
-                        self.partData[self.numParts-1,0] + tol)**2) < 0.0:
+                        self.partData[self.numParts-1,0] + self.overlapTol)**2) < 0.0:
         return True
       return False
     
@@ -212,18 +212,12 @@ class Cube:
     if self.numParts < 2:
       return False
     else:
-      '''
-      for i in range(self.numParts-1):
-        dist = sum((self.partData[i,1:] - self.partData[self.numParts-1,1:])**2)
-        if dist - (self.partData[i,0] + self.partData[self.numParts-1,0] + tol)**2 < 0.0:
-          return True
-      '''
       dist = np.sum((self.partData[:self.numParts-1,1:] - \
                      self.partData[self.numParts-1,1:])**2, axis=1)
       if np.min(dist - (self.partData[:self.numParts-1,0] + \
-                        self.partData[self.numParts-1,0] + tol)**2) < 0.0:
+                        self.partData[self.numParts-1,0] + self.overlapTol)**2) < 0.0:
         overlaps = np.abs(dist - (self.partData[:self.numParts-1,0] + \
-                        self.partData[self.numParts-1,0] + tol)**2)
+                        self.partData[self.numParts-1,0] + self.overlapTol)**2)
         testRads = np.empty((self.numParts-1,2))
         testRads[:,0] = self.partData[:self.numParts-1,0]**2
         testRads[:,1] = self.partData[self.numParts-1,0]**2
@@ -233,17 +227,17 @@ class Cube:
           return True
       return False
 
-# Initialise subdomains
+# Initialise subdomains.
 cubeData = [Cube(i) for i in range(numCubes)]
 
-# For debug
-file = open('cube_bounds.txt','w')
-for i, cube in enumerate(cubeData):
-  file.write("%d %f %f %f %f %f %f\n"%(i, cube.bounds[0], cube.bounds[1],\
-    cube.bounds[2], cube.bounds[3], cube.bounds[4], cube.bounds[5]))
-file.close()
+# DEBUG
+#file = open('cube_bounds.txt','w')
+#for i, cube in enumerate(cubeData):
+#  file.write("%d %f %f %f %f %f %f\n"%(i, cube.bounds[0], cube.bounds[1],\
+#    cube.bounds[2], cube.bounds[3], cube.bounds[4], cube.bounds[5]))
+#file.close()
 
-# All possible ghost particle translation unit vectors
+# All possible ghost particle translation unit vectors.
 pbcPerms = []
 for i in range(2):
   for j in range(2):
@@ -270,7 +264,7 @@ for i in range(numPartsAttempt):
     tries += 1
     pos = genPos()            # Generate a random position.
     cubeIndex = getCubeIndex(pos)   # Determine subdomain membership.
-    tryIndex = []       # List of all cubes in which placement has been attempted
+    tryIndex = []       # List of all cubes in which placement has been attempted.
     
     # Check for overlaps with particles in containing subdomains.
     for j in cubeIndex:
@@ -278,12 +272,12 @@ for i in range(numPartsAttempt):
       cubeData[j].addPart([partRad[i], pos[0], pos[1], pos[2]])
       retry = cubeData[j].checkOverlaps()
       if retry:
-        # Remove particle from all cubes in which it has been placed
+        # Remove particle from all cubes in which it has been placed.
         for k in tryIndex:
           cubeData[k].numParts -= 1
         break
       
-    # Determine if particle crosses PBCs
+    # Determine if particle crosses PBCs.
     if not retry:
       pbc = np.zeros(3)
       if checkPbc(pos, pbc):
@@ -293,7 +287,7 @@ for i in range(numPartsAttempt):
         posPerms = uniqueRows(posPerms)
         posPerms = np.delete(posPerms, np.where((posPerms == pos).all(axis=1)), axis=0) 
           
-        # Check for overlaps in ghost positions
+        # Check for overlaps in ghost positions.
         for ghost in posPerms:
           cubeIndex = getCubeIndex(ghost)
           for j in cubeIndex:
@@ -301,14 +295,14 @@ for i in range(numPartsAttempt):
             cubeData[j].addPart([partRad[i], ghost[0], ghost[1], ghost[2]])
             retry = cubeData[j].checkOverlaps()
             if retry:
-              # Remove particle from all cubes in which it has been placed
+              # Remove particle from all cubes in which it has been placed.
               for k in tryIndex:
                 cubeData[k].numParts -= 1
               break
           if retry:
             break
     
-    # Succesful placement
+    # Succesful placement.
     if not retry:
       partData[numPlaced,0] = partRad[i]
       partData[numPlaced,1:] = pos
@@ -349,11 +343,45 @@ for i in range(numPlaced):
 
 partData = partData[:numPlaced,:]
 
-packingFile = 'packing.txt'
+# Calculate mesh domain size.
+outerBounds = np.zeros((3,2))
+for i in range(numPlaced):
+    if partData[i,1] + partData[i,0] > outerBounds[0,1]:
+        outerBounds[0,1] = partData[i,1] + partData[i,0]
+    if partData[i,1] - partData[i,0] < outerBounds[0,0]:
+        outerBounds[0,0] = partData[i,1] - partData[i,0]
+
+    if partData[i,2] + partData[i,0] > outerBounds[1,1]:
+        outerBounds[1,1] = partData[i,2] + partData[i,0]
+    if partData[i,2] - partData[i,0] < outerBounds[1,0]:
+        outerBounds[1,0] = partData[i,2] - partData[i,0]
+        
+    if partData[i,3] + partData[i,0] > outerBounds[2,1]:
+        outerBounds[2,1] = partData[i,3] + partData[i,0]
+    if partData[i,3] - partData[i,0] < outerBounds[2,0]:
+        outerBounds[2,0] = partData[i,3] - partData[i,0]
+
+# Give some space at edges of domain.
+extraSpace = 0.1 * partData[0,0]
+outerBounds[:,0] = outerBounds[:,0] - extraSpace
+outerBounds[:,1] = outerBounds[:,1] + extraSpace
+
+meshLx = outerBounds[0,1] - outerBounds[0,0]
+meshLy = outerBounds[1,1] - outerBounds[1,0]
+meshLz = outerBounds[2,1] - outerBounds[2,0]
+
+# Calculate porosity
+partVol = 0.0
+for rad in partData[:,0]:
+    partVol += 4.0 * math.pi * rad**3.0 / 3.0
+porosity = 1.0 - partVol / (meshLx * meshLy * meshLz) 
+
+packingFile = 'packings/packing_%d.txt'%(numPlaced)
 print("\n%s: Placed %d of %d particles. Writing data to file %s."\
       %(thisScript, numPlaced, numPartsAttempt, packingFile))
 outFile = open(packingFile, 'w')
 outFile.write("NUMPARTS\n%d\n"%numPlaced)
+outFile.write("POROSITY\n%1.4f\n"%porosity)
 outFile.write("BOXDIMS\n%+1.15e %+1.15e %+1.15e\n"%(Lx, Ly, Lz))
 outFile.write("PARTDATA\n")
 for i in range(numPlaced):
@@ -361,8 +389,8 @@ for i in range(numPlaced):
                 %(partData[i,0], partData[i,1], partData[i,2], partData[i,3]))        
 outFile.close()
 
-# Output data in .vtp format readable by ParaView
-packingFile = 'packing.vtp'
+# Output data in .vtp format readable by ParaView. -----------------------------
+packingFile = 'packings/packing_%d.vtp'%(numPlaced)
 outFile = open(packingFile, 'w')
 outFile.write("<?xml version=\"1.0\"?>\n<VTKFile type=\"PolyData\" version=\"0.1\" format=\"ascii\">\n")
 outFile.write("<PolyData>\n\t<Piece NumberOfPoints=\"%d\">\n\t\t<Points>\n\t\t\t"%(numPlaced))
@@ -381,48 +409,23 @@ outFile.write("\t\t\t\t</DataArray>\n")
 outFile.write("\t\t\t</PointData>\n\t\t</Piece>\n\t</PolyData>\n</VTKFile>")
 outFile.close()
 
-# Output data in format of MF-Unstructured AddHole command
-packingFile = 'packing.mf.addhole'
+# Output data in format of MF-Unstructured AddHole command. --------------------
+packingFile = 'packings/packing_%d.mf.addhole'%(numPlaced)
 outFile = open(packingFile, 'w')
 
-domainBigger = 1.0e-09
-tetMaxVol = domainBigger / 1.0e+05
+
+tetMaxVol = (meshLx * meshLy * meshLz) / 1.0e+05
 tetMinAng = 15.0
 tetRadEdge = 2.0
 ScaleGeo = 1000.0
 
-tol = 0.01 * partData[-1,0]
-
-outerBounds = np.zeros((3,2))
-for i in range(numPlaced):
-    if partData[i,1] + partData[i,0] > outerBounds[0,1]:
-        outerBounds[0,1] = partData[i,1] + partData[i,0]
-    if partData[i,1] - partData[i,0] < outerBounds[0,0]:
-        outerBounds[0,0] = partData[i,1] - partData[i,0]
-
-    if partData[i,2] + partData[i,0] > outerBounds[1,1]:
-        outerBounds[1,1] = partData[i,2] + partData[i,0]
-    if partData[i,2] - partData[i,0] < outerBounds[1,0]:
-        outerBounds[1,0] = partData[i,2] - partData[i,0]
-        
-    if partData[i,3] + partData[i,0] > outerBounds[2,1]:
-        outerBounds[2,1] = partData[i,3] + partData[i,0]
-    if partData[i,3] - partData[i,0] < outerBounds[2,0]:
-        outerBounds[2,0] = partData[i,3] - partData[i,0]
-
-# Give some space at edges of domain
-outerBounds[:,0] = outerBounds[:,0] - partData[0,0]
-outerBounds[:,1] = outerBounds[:,1] + partData[0,0]
-
 outFile.write("\tAutoMesh TET %+1.7e %f %f %+1.7e %+1.7e %+1.7e\n\n"\
         %(tetMaxVol * ScaleGeo**3, tetMinAng, tetRadEdge,\
-        (outerBounds[0,1]-outerBounds[0,0] + 2*tol) * ScaleGeo,\
-        (outerBounds[1,1]-outerBounds[1,0] + 2*tol) * ScaleGeo,\
-        (outerBounds[2,1]-outerBounds[2,0] + 2*tol) * ScaleGeo))
+        meshLx * ScaleGeo, meshLy * ScaleGeo, meshLz * ScaleGeo))
 
 outFile.write("\tAddHoleCount %d\n\n" %(numPlaced))
 
-# Determine refinement classes
+# Determine refinement classes.
 refineMax = 3
 Amax = math.pi * partData[0,0]**2
 Amin = math.pi * partData[-1,0]**2
@@ -450,11 +453,11 @@ if refineMin != refineMax:
             radClasses.append(partData[0,0])
             break
 
-# Translate positions to place corner of cell at origin
+# Translate positions to place corner of cell at origin.
 AddHoleData = np.empty(partData.shape)
-AddHoleData[:,1] = ScaleGeo * (partData[:,1] + abs(outerBounds[0,0]) + tol)
-AddHoleData[:,2] = ScaleGeo * (partData[:,2] + abs(outerBounds[1,0]) + tol)
-AddHoleData[:,3] = ScaleGeo * (partData[:,3] + abs(outerBounds[2,0]) + tol)
+AddHoleData[:,1] = ScaleGeo * (partData[:,1] + abs(outerBounds[0,0]))
+AddHoleData[:,2] = ScaleGeo * (partData[:,2] + abs(outerBounds[1,0]))
+AddHoleData[:,3] = ScaleGeo * (partData[:,3] + abs(outerBounds[2,0]))
 AddHoleData[:,0] = ScaleGeo * partData[:,0]
 
 refine = refineMax
@@ -466,3 +469,20 @@ for i in range(numPlaced):
                  %(AddHoleData[i,1], AddHoleData[i,2], AddHoleData[i,3], AddHoleData[i,0], refine))
 outFile.write("\n\tScaleGeometryFactor %+1.7e\n" %(ScaleGeo))
 outFile.close() 
+
+# Output data in format of MF-Unstrucutred IB command
+packingFile = 'packings/packing_%d.mf.ib'%(numPlaced)
+outFile = open(packingFile, 'w')
+outFile.write("\tAutoMesh HEX 100 100 100 %1.7e %1.7e %1.7e\n\n"%(meshLx, meshLy, meshLz))
+outFile.write("IMMERSEDBOUNDARY\n\tCOUNT %d\n"%(numPlaced))
+refine = refineMax
+for i in range(numPlaced):
+  for j in range(len(radClasses)-1):
+    if partData[i,0] > radClasses[j] and partData[i,0] < radClasses[j+1]:
+      refine = refineMin + j
+  outFile.write("\tOBJECT %d\n\t\tTYPE MFTL\n\t\tSHAPE SPHERE\n\t\tRADIUS %1.7e\n"\
+          "\t\tREFINELEVEL %d\n\t\tINITCENTER %1.7e %1.7e %1.7e\n\tENDOBJECT\n"\
+          %(i, partData[i,0], refine, partData[i,1] + abs(outerBounds[0,0]),
+            partData[i,2] + abs(outerBounds[1,0]), partData[i,3] + abs(outerBounds[2,0])))
+outFile.write("END\n")
+outFile.close()
